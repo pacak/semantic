@@ -1,16 +1,18 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
 .TH CORRUPT 1
 .SH NAME
-corrupt \- modify files by randomly changing bits
+\fRcorrupt \- modify files by randomly changing bits\fP
+.PP
 .SH SYNOPSIS
-.B corrupt
-[\fB\-n\fR \fIBITS\fR]
-[\fB\-\-bits\fR \fIBITS\fR]
-.IR file ...
+\fBcorrupt\fR [\fB\-n\fR \fIBITS\fR] [\fB\-\-bits\fR \fIBITS\fR] \fIfile\fR...\fP
+.PP
 .SH DESCRIPTION
-.B corrupt
-modifies files by toggling a randomly chosen bit.
+\fBcorrupt\fR modifies files by toggling a randomly chosen bit.\fP
+.PP
 .SH OPTIONS
 .TP
-.BR \-n ", " \-\-bits =\fIBITS\fR
-Set the number of bits to modify.
-Default is one bit.
+\fB\-n\fR, \fB\-\-bits\fR=\fIBITS\fP
+.PP
+\fRSet the number of bits to modify. Default is one bit.\fP
+.PP
