@@ -82,6 +82,7 @@ where
     I: IntoIterator<Item = (&'a Escape, &'a str)>,
 {
     let mut at_line_start = true;
+    let mut at_word_start = false;
     for (&meta, payload) in items {
         if !at_line_start && meta == Escape::UnescapedAtNewline {
             out.push(b'\n');
@@ -91,9 +92,14 @@ where
             match meta {
                 Escape::Spaces => {
                     if c == b' ' {
-                        out.push(b'\\');
+                        out.extend_from_slice(b"\\ ");
+                    } else if at_word_start && c.is_ascii_uppercase() {
+                        // in mdoc arguments it is possible to have inline macros
+                        out.extend_from_slice(b"\\&");
+                        out.push(c);
+                    } else {
+                        out.push(c);
                     }
-                    out.push(c);
                 }
                 Escape::Special | Escape::SpecialNoNewline => {
                     if at_line_start && (c == b'.' || c == b'\'' || c == b' ') {
@@ -117,6 +123,7 @@ where
                 }
             }
             at_line_start = c == b'\n';
+            at_word_start = c == b' ';
         }
     }
 }
@@ -126,7 +133,7 @@ mod test {
     use super::{escape_to_string, Apostrophes, Escape};
 
     #[test]
-    fn asdf() {
+    fn sample() {
         let ap = Apostrophes::Handle;
         let items: &[(Escape, &str)] = &[
             (Escape::Unescaped, "\\fI"),

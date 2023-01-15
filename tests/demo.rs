@@ -58,7 +58,7 @@ fn rendering_to_file_works() {
         .render();
 
     let demo = troff_file();
-    let changed = write_updated(&page, &demo).unwrap();
+    let changed = write_updated(&demo, &page).unwrap();
     assert!(!changed, "Changes detected to generated {:?} file", demo);
 }
 
@@ -79,7 +79,7 @@ fn rendered_file_makes_sense_to_troff() {
     assert!(out.status.success());
 
     let output = String::from_utf8_lossy(&out.stdout);
-    let changed = write_updated(&output, &expected).unwrap();
+    let changed = write_updated(&expected, &output).unwrap();
     assert!(
         !changed,
         "Changes detected to generated {:?} file",

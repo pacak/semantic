@@ -1,3 +1,5 @@
+//! Free monoid on a set of annotated strings
+//!
 //! This module implements a free monoid on a set of annotated string slices along with some extra
 //! tools to operate on it. For typical usage you can check `typical_usage` function since
 //! abstractions used here are scary, not exposed to the end user and hidden from the doctest.
@@ -5,22 +7,26 @@
 #[test]
 fn typical_usage() {
     let mut m = FreeMonoid::<char>::default();
-    m.push('a', "string ").push('b', "more string");
+    m.push_str('a', "string ")
+        .push_str('b', "more string")
+        .push('d', '!');
 
     let mut r = String::new();
     for (a, slice) in &m {
         r += &format!("{}: {:?}; ", a, slice);
     }
-    assert_eq!("a: \"string \"; b: \"more string\"; ", r);
+    assert_eq!("a: \"string \"; b: \"more string\"; d: \"!\"; ", r);
 }
 
 /// A Free Monoid on set of annotated string slices
 ///
 /// Where identity element is `FreeMonoid::default` and binary operation is `+`
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub(crate) struct FreeMonoid<T> {
+pub struct FreeMonoid<T> {
     payload: String,
     labels: Vec<(std::ops::Range<usize>, T)>,
+    /// Merge adjacent fields with the same metadata together during insertion
+    pub squash: bool,
 }
 
 impl<T> Default for FreeMonoid<T> {
@@ -28,6 +34,7 @@ impl<T> Default for FreeMonoid<T> {
         Self {
             payload: String::new(),
             labels: Vec::new(),
+            squash: false,
         }
     }
 }
@@ -54,10 +61,36 @@ impl<T> FreeMonoid<T> {
     }
 
     /// Append an annotated string slice
-    pub(crate) fn push<S: AsRef<str>>(&mut self, meta: T, payload: S) -> &mut Self {
-        let range = self.payload.len()..self.payload.len() + payload.as_ref().len();
-        self.payload.push_str(payload.as_ref());
-        self.labels.push((range, meta));
+    pub(crate) fn push_str(&mut self, meta: T, payload: &str) -> &mut Self
+    where
+        T: PartialEq,
+    {
+        let r = self.payload.len();
+        self.payload.push_str(payload);
+        if let Some((prev_range, prev_meta)) = self.labels.last_mut() {
+            if self.squash && prev_meta == &meta {
+                prev_range.end = self.payload.len();
+                return self;
+            }
+        }
+        self.labels.push((r..self.payload.len(), meta));
+        self
+    }
+
+    /// Append an annotated char slice
+    pub(crate) fn push(&mut self, meta: T, payload: char) -> &mut Self
+    where
+        T: PartialEq,
+    {
+        let r = self.payload.len();
+        self.payload.push(payload);
+        if let Some((prev_range, prev_meta)) = self.labels.last_mut() {
+            if self.squash && prev_meta == &meta {
+                prev_range.end = self.payload.len();
+                return self;
+            }
+        }
+        self.labels.push((r..self.payload.len(), meta));
         self
     }
 
@@ -66,6 +99,17 @@ impl<T> FreeMonoid<T> {
         AnnotatedSlicesIter {
             current: 0,
             items: self,
+        }
+    }
+}
+
+impl<'a, T> Extend<(T, &'a str)> for FreeMonoid<T>
+where
+    T: PartialEq,
+{
+    fn extend<I: IntoIterator<Item = (T, &'a str)>>(&mut self, iter: I) {
+        for (k, v) in iter {
+            self.push_str(k, v);
         }
     }
 }
@@ -101,6 +145,12 @@ impl<T: Clone> std::ops::AddAssign<&Self> for FreeMonoid<T> {
 
 impl<T: PartialEq> std::ops::AddAssign<(T, &str)> for FreeMonoid<T> {
     fn add_assign(&mut self, rhs: (T, &str)) {
+        self.push_str(rhs.0, rhs.1);
+    }
+}
+
+impl<T: PartialEq> std::ops::AddAssign<(T, char)> for FreeMonoid<T> {
+    fn add_assign(&mut self, rhs: (T, char)) {
         self.push(rhs.0, rhs.1);
     }
 }
@@ -108,7 +158,7 @@ impl<T: PartialEq> std::ops::AddAssign<(T, &str)> for FreeMonoid<T> {
 /// Iterate over annotated string slices contained in a [`FreeMonoid`].
 ///
 /// Create with [`FreeMonoid::iter`]
-pub(crate) struct AnnotatedSlicesIter<'a, T> {
+pub struct AnnotatedSlicesIter<'a, T> {
     current: usize,
     items: &'a FreeMonoid<T>,
 }

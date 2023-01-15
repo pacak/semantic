@@ -1,6 +1,80 @@
 //! High level interface designed to generate manpages
 
-use crate::raw::{Apostrophes, Font, Roff};
+//! # Example: generating a man page
+//! ```rust
+//! # use ::roff::{man::*, write_updated};
+//! use Style::*;
+//! let page = Manpage::new("CORRUPT", Section::General, &[])
+//!     .section("NAME")
+//!     .paragraph([(Normal, "corrupt - modify files by randomly changing bits")])
+//!     .section("SYNOPSIS")
+//!     .paragraph([
+//!         (Argument, "corrupt"),
+//!         (Normal, " ["), (Argument, "-n"), (Normal, " "), (Metavar, "BITS"), (Normal, "]"),
+//!     ])
+//!     .section("DESCRIPTION")
+//!     .paragraph([
+//!         (Argument, "corrupt"),
+//!         (Normal, " modifies files by toggling a randomly chosen bit."),
+//!     ])
+//!     .section("OPTIONS")
+//!     .label(None, [(Argument, "-n"), (Normal, "="), (Metavar, "BITS") ])
+//!     .paragraph([(Normal, "Set the number of bits to modify")])
+//!     .render();
+//! # use std::{path::PathBuf, env::var_os};
+//! let path = PathBuf::from(var_os("CARGO_MANIFEST_DIR").unwrap()).join("corrupt.1");
+//! write_updated(path, &page).unwrap();
+//! # drop(page);
+//! ```
+//!
+//! Which outputs
+//! ```roff
+//! .ie \n(.g .ds Aq \(aq
+//! .el .ds Aq '
+//! .TH \&CORRUPT 1
+//! .SH \&NAME
+//! \fRcorrupt \- modify files by randomly changing bits\fP
+//! .PP
+//! .SH \&SYNOPSIS
+//! \fBcorrupt\fR [\fB\-n\fR \fIBITS\fR]\fP
+//! .PP
+//! .SH \&DESCRIPTION
+//! \fBcorrupt\fR modifies files by toggling a randomly chosen bit.\fP
+//! .PP
+//! .SH \&OPTIONS
+//! .TP
+//! \fB\-n\fR=\fIBITS\fP
+//! .PP
+//! \fRSet the number of bits to modify\fP
+//! .PP
+//! ```
+//!
+//! Which will be shown by the `man(1)` command as:
+//!
+//! ```txt
+//! CORRUPT(1)                    General Commands Manual                   CORRUPT(1)
+//!
+//! NAME
+//!        corrupt - modify files by randomly changing bits
+//!
+//! SYNOPSIS
+//!        corrupt [-n BITS]
+//!
+//! DESCRIPTION
+//!        corrupt modifies files by toggling a randomly chosen bit.
+//!
+//! OPTIONS
+//!        -n=BITS
+//!
+//!        Set the number of bits to modify
+//!                                                                         CORRUPT(1)
+//! ```
+//!
+//! [ROFF]: https://en.wikipedia.org/wiki/Roff_(software)
+//! [groff(7)]: https://manpages.debian.org/bullseye/groff/groff.7.en.html
+//! [man]: https://en.wikipedia.org/wiki/Man_page
+
+use crate::roff::{Apostrophes, Font, Roff};
 
 /// Manpage Roff document
 #[derive(Debug, Clone)]
@@ -8,7 +82,7 @@ pub struct Manpage {
     roff: Roff,
 }
 
-/// Font style, unlike [`Font`](crate::raw::Font), this style focuses more on what to render rather
+/// Font style, unlike [`Font`](crate::roff::Font), this style focuses more on what to render rather
 /// than how to render it
 pub enum Style {
     /// Metavariables and other placeholder text

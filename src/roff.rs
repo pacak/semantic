@@ -1,4 +1,23 @@
 //! Low level interface for Roff composer
+//!
+//! [ROFF] is a family of Unix text-formatting languages, implemented
+//! by the `nroff`, `troff`, and `groff` programs, among others. See
+//! [groff(7)] for a description of the language. This structure is an
+//! abstract representation of a document in ROFF format. It is meant
+//! for writing code to generate ROFF documents, such as manual pages.
+//!
+//! # Example
+//! ```rust
+//! # use ::roff::roff::*;
+//! let doc = Roff::new()
+//!     .text([(Font::Roman, "hello, world")])
+//!     .render(Apostrophes::DontHandle);
+//! assert_eq!(doc, "\\fRhello, world\\fP");
+//! ```
+//!
+//! [ROFF]: https://en.wikipedia.org/wiki/Roff_(software)
+
+use std::ops::{Add, AddAssign};
 
 pub use crate::escape::Apostrophes;
 use crate::{escape::Escape, monoid::FreeMonoid};
@@ -7,13 +26,13 @@ use crate::{escape::Escape, monoid::FreeMonoid};
 ///
 /// # Example
 /// ```rust
-/// # use ::roff::raw::*;
+/// # use ::roff::roff::*;
 /// let doc = Roff::new()
 ///     .control("TH", ["FOO", "1"])
 ///     .control("SH", ["NAME"])
 ///     .text([(Font::Current, "foo - do a foo thing")])
 ///     .render(Apostrophes::DontHandle);
-/// assert_eq!(doc, ".TH FOO 1\n.SH NAME\nfoo \\- do a foo thing");
+/// assert_eq!(doc, ".TH \\&FOO 1\n.SH \\&NAME\nfoo \\- do a foo thing");
 /// ```
 #[derive(Debug, Default, Clone)]
 pub struct Roff {
@@ -110,14 +129,14 @@ impl Roff {
         S: AsRef<str>,
         I: IntoIterator<Item = S>,
     {
-        self.payload.push(Escape::UnescapedAtNewline, ".");
-        self.payload.push(Escape::Unescaped, name);
+        self.payload.push_str(Escape::UnescapedAtNewline, ".");
+        self.payload.push_str(Escape::Unescaped, name);
         for arg in args {
             self.payload
-                .push(Escape::Unescaped, " ")
-                .push(Escape::Spaces, arg);
+                .push_str(Escape::Unescaped, " ")
+                .push_str(Escape::Spaces, arg.as_ref());
         }
-        self.payload.push(Escape::UnescapedAtNewline, "");
+        self.payload.push_str(Escape::UnescapedAtNewline, "");
         self
     }
 
@@ -125,7 +144,7 @@ impl Roff {
     ///
     /// This will not show up in the output of the roff program.
     pub fn roff_linebreak(&mut self) -> &mut Self {
-        self.payload.push(Escape::UnescapedAtNewline, "");
+        self.payload.push_str(Escape::UnescapedAtNewline, "");
         self
     }
 
@@ -134,23 +153,23 @@ impl Roff {
     /// This will not show up in the output of the roff program.
     pub fn roff_comment(&mut self, text: &str) -> &mut Self {
         self.payload
-            .push(Escape::UnescapedAtNewline, ".\\\" ")
-            .push(Escape::SpecialNoNewline, text);
+            .push_str(Escape::UnescapedAtNewline, ".\\\" ")
+            .push_str(Escape::SpecialNoNewline, text);
         self
     }
 
     /// Insert raw escape sequence
     pub fn escape(&mut self, arg: &str) -> &mut Self {
-        self.payload.push(Escape::Unescaped, arg);
+        self.payload.push_str(Escape::Unescaped, arg);
         self
     }
 
     /// Insert a plain text string, special characters are escaped
     pub fn plaintext(&mut self, text: &str) -> &mut Self {
         if self.strip_newlines {
-            self.payload.push(Escape::SpecialNoNewline, text);
+            self.payload.push_str(Escape::SpecialNoNewline, text);
         } else {
-            self.payload.push(Escape::Special, text);
+            self.payload.push_str(Escape::Special, text);
         }
         self
     }
@@ -187,6 +206,22 @@ impl Roff {
         }
         crate::escape::escape(&self.payload, &mut res, ap);
         String::from_utf8(res).expect("Should be valid utf8 by construction")
+    }
+}
+
+impl AddAssign<&Roff> for Roff {
+    fn add_assign(&mut self, rhs: &Roff) {
+        self.payload += &rhs.payload;
+        self.strip_newlines = rhs.strip_newlines;
+    }
+}
+
+impl Add<&Roff> for Roff {
+    type Output = Self;
+
+    fn add(mut self, rhs: &Roff) -> Self::Output {
+        self += rhs;
+        self
     }
 }
 
