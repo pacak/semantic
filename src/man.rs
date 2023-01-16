@@ -6,20 +6,20 @@
 //! use Style::*;
 //! let page = Manpage::new("CORRUPT", Section::General, &[])
 //!     .section("NAME")
-//!     .paragraph([(Normal, "corrupt - modify files by randomly changing bits")])
+//!     .paragraph([(Text, "corrupt - modify files by randomly changing bits")])
 //!     .section("SYNOPSIS")
 //!     .paragraph([
-//!         (Argument, "corrupt"),
-//!         (Normal, " ["), (Argument, "-n"), (Normal, " "), (Metavar, "BITS"), (Normal, "]"),
+//!         (Literal, "corrupt"),
+//!         (Text, " ["), (Literal, "-n"), (Text, " "), (Metavar, "BITS"), (Text, "]"),
 //!     ])
 //!     .section("DESCRIPTION")
 //!     .paragraph([
-//!         (Argument, "corrupt"),
-//!         (Normal, " modifies files by toggling a randomly chosen bit."),
+//!         (Literal, "corrupt"),
+//!         (Text, " modifies files by toggling a randomly chosen bit."),
 //!     ])
 //!     .section("OPTIONS")
-//!     .label(None, [(Argument, "-n"), (Normal, "="), (Metavar, "BITS") ])
-//!     .paragraph([(Normal, "Set the number of bits to modify")])
+//!     .label(None, [(Literal, "-n"), (Text, "="), (Metavar, "BITS") ])
+//!     .paragraph([(Text, "Set the number of bits to modify")])
 //!     .render();
 //! # use std::{path::PathBuf, env::var_os};
 //! let path = PathBuf::from(var_os("CARGO_MANIFEST_DIR").unwrap()).join("corrupt.1");
@@ -74,7 +74,7 @@
 //! [groff(7)]: https://manpages.debian.org/bullseye/groff/groff.7.en.html
 //! [man]: https://en.wikipedia.org/wiki/Man_page
 
-use crate::roff::{Apostrophes, Font, Roff};
+use crate::roff::{Apostrophes, Roff};
 
 /// Manpage Roff document
 #[derive(Debug, Clone)]
@@ -82,33 +82,7 @@ pub struct Manpage {
     roff: Roff,
 }
 
-/// Font style, unlike [`Font`](crate::roff::Font), this style focuses more on what to render rather
-/// than how to render it
-pub enum Style {
-    /// Metavariables and other placeholder text
-    Metavar,
-
-    /// Switches and argument names, command names and other things user is expected to type
-    /// implicitly
-    Argument,
-
-    /// Plain text with no decorations
-    Normal,
-
-    /// Extra highlighed text. You can also use `Metavar` or `Argument`.
-    Highlight,
-}
-
-impl Style {
-    pub(crate) fn font(&self) -> Font {
-        match self {
-            Style::Metavar => Font::Italic,
-            Style::Argument => Font::Bold,
-            Style::Normal => Font::Roman,
-            Style::Highlight => Font::BoldItalic,
-        }
-    }
-}
+pub use crate::shared::{Section, Style};
 
 impl Manpage {
     /// Create a new manpage with given `title` in a given `section`
@@ -181,45 +155,5 @@ impl Manpage {
     #[must_use]
     pub fn render(&self) -> String {
         self.roff.render(Apostrophes::Handle)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-/// Manpage section
-pub enum Section<'a> {
-    /// General commands
-    General,
-    /// System calls
-    SystemCall,
-    /// Library functions such as C standard library functions
-    LibraryFunction,
-    /// Special files (usually devices in /dev) and drivers
-    SpecialFile,
-    /// File formats and conventions
-    FileFormat,
-    /// Games and screensavers
-    Game,
-    /// Miscellaneous
-    Misc,
-    /// System administration commands and daemons
-    Sysadmin,
-    /// Custom section, must start with a digit 1 to 8, can have a string appended to indicate a
-    /// subsection
-    Custom(&'a str),
-}
-
-impl Section<'_> {
-    fn as_str(&self) -> &str {
-        match self {
-            Section::General => "1",
-            Section::SystemCall => "2",
-            Section::LibraryFunction => "3",
-            Section::SpecialFile => "4",
-            Section::FileFormat => "5",
-            Section::Game => "6",
-            Section::Misc => "7",
-            Section::Sysadmin => "8",
-            Section::Custom(s) => s,
-        }
     }
 }

@@ -34,6 +34,8 @@ use crate::{escape::Escape, monoid::FreeMonoid};
 ///     .render(Apostrophes::DontHandle);
 /// assert_eq!(doc, ".TH FOO 1\n.SH NAME\nfoo \\- do a foo thing");
 /// ```
+///
+/// You can concatenate multiple `Roff` documents with `+` or `+=`.
 #[derive(Debug, Default, Clone)]
 pub struct Roff {
     payload: FreeMonoid<Escape>,

@@ -29,10 +29,7 @@
 //!
 
 use crate::roff::Font;
-pub use crate::{
-    man::{Manpage, Section},
-    monoid::FreeMonoid,
-};
+pub use crate::{man::Manpage, monoid::FreeMonoid};
 use std::ops::{Add, AddAssign};
 
 /// Semantic document
@@ -85,28 +82,7 @@ enum Sem {
     Style(Style),
 }
 
-/// Style and meaning of a particular snippet of text
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum Style {
-    /// Encased string that is or a part of an option name inclusive with dashes
-    /// `-f` or `--foo`
-    /// Something that user needs to type literally
-    Literal,
-
-    /// Metavariable part
-    /// - FOO here: --foo FOO
-    /// Something that user needs to replace with their own input
-    Metavar,
-
-    /// Monospaced text
-    Mono,
-
-    /// Plain text
-    Text,
-
-    /// Highlighted text
-    Important,
-}
+pub use crate::shared::{Section, Style};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ListStyle {

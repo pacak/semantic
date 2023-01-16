@@ -19,41 +19,41 @@ fn rendering_to_file_works() {
     use ::roff::man::{Manpage, Section, Style::*};
     let page = Manpage::new("CORRUPT", Section::General, &[])
         .section("NAME")
-        .paragraph([(Normal, "corrupt - modify files by randomly changing bits")])
+        .paragraph([(Text, "corrupt - modify files by randomly changing bits")])
         .section("SYNOPSIS")
         .paragraph([
-            (Argument, "corrupt"),
-            (Normal, " ["),
-            (Argument, "-n"),
-            (Normal, " "),
+            (Literal, "corrupt"),
+            (Text, " ["),
+            (Literal, "-n"),
+            (Text, " "),
             (Metavar, "BITS"),
-            (Normal, "] ["),
-            (Argument, "--bits"),
-            (Normal, " "),
+            (Text, "] ["),
+            (Literal, "--bits"),
+            (Text, " "),
             (Metavar, "BITS"),
-            (Normal, "] "),
+            (Text, "] "),
             (Metavar, "file"),
-            (Normal, "..."),
+            (Text, "..."),
         ])
         .section("DESCRIPTION")
         .paragraph([
-            (Argument, "corrupt"),
-            (Normal, " modifies files by toggling a randomly chosen bit."),
+            (Literal, "corrupt"),
+            (Text, " modifies files by toggling a randomly chosen bit."),
         ])
         .section("OPTIONS")
         .label(
             None,
             [
-                (Argument, "-n"),
-                (Normal, ", "),
-                (Argument, "--bits"),
-                (Normal, "="),
+                (Literal, "-n"),
+                (Text, ", "),
+                (Literal, "--bits"),
+                (Text, "="),
                 (Metavar, "BITS"),
             ],
         )
         .paragraph([
-            (Normal, "Set the number of bits to modify. "),
-            (Normal, "Default is one bit."),
+            (Text, "Set the number of bits to modify. "),
+            (Text, "Default is one bit."),
         ])
         .render();
 

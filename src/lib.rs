@@ -15,6 +15,7 @@ pub mod man;
 mod monoid;
 pub mod roff;
 pub mod semantic;
+mod shared;
 
 /// Update file contents if needed and return if it was needed
 ///
