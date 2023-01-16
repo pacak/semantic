@@ -1,4 +1,4 @@
-//! Escape and concatenate string slices according to [`Escape`] rules
+//! Escape and concatenate string slices according to Roff Escape rules
 
 /// Apostrophes handling configuration
 ///
@@ -16,6 +16,7 @@ pub enum Apostrophes {
 ///
 /// <https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=507673#65>
 const APOSTROPHE: &str = "\\*(Aq";
+
 #[allow(clippy::doc_markdown)]
 /// A preamble added to the start of rendered output.
 ///
@@ -40,11 +41,12 @@ pub(crate) const APOSTROPHE_PREABMLE: &str = r#".ie \n(.g .ds Aq \(aq
 
 /// Escaping rules
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum Escape {
+pub(crate) enum Escape {
     /// Insert a newline character unless on a new line already
     UnescapedAtNewline,
 
-    /// Escape space characters (`' '`)
+    /// Escape space characters (`' '`) and newlines (`'\n'`)
+    /// This escape is used for control sequence arguments
     Spaces,
 
     /// Escape characters roff considers special:
@@ -82,7 +84,6 @@ where
     I: IntoIterator<Item = (&'a Escape, &'a str)>,
 {
     let mut at_line_start = true;
-    let mut at_word_start = false;
     for (&meta, payload) in items {
         if !at_line_start && meta == Escape::UnescapedAtNewline {
             out.push(b'\n');
@@ -91,12 +92,8 @@ where
         for &c in payload.as_bytes() {
             match meta {
                 Escape::Spaces => {
-                    if c == b' ' {
+                    if c == b' ' || c == b'\n' {
                         out.extend_from_slice(b"\\ ");
-                    } else if at_word_start && c.is_ascii_uppercase() {
-                        // in mdoc arguments it is possible to have inline macros
-                        out.extend_from_slice(b"\\&");
-                        out.push(c);
                     } else {
                         out.push(c);
                     }
@@ -123,7 +120,6 @@ where
                 }
             }
             at_line_start = c == b'\n';
-            at_word_start = c == b' ';
         }
     }
 }

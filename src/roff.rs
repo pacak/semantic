@@ -32,7 +32,7 @@ use crate::{escape::Escape, monoid::FreeMonoid};
 ///     .control("SH", ["NAME"])
 ///     .text([(Font::Current, "foo - do a foo thing")])
 ///     .render(Apostrophes::DontHandle);
-/// assert_eq!(doc, ".TH \\&FOO 1\n.SH \\&NAME\nfoo \\- do a foo thing");
+/// assert_eq!(doc, ".TH FOO 1\n.SH NAME\nfoo \\- do a foo thing");
 /// ```
 #[derive(Debug, Default, Clone)]
 pub struct Roff {
@@ -96,7 +96,21 @@ impl Roff {
         Self::default()
     }
 
-    /// `keep_newlines` specifies if render should keep all the newline characters inside added text
+    /// Chainable setter for `strip_newlines` field
+    ///
+    /// `strip_newlines` specifies if [`render`](Self::render) should keep all the newline characters
+    /// inside added text newlines can come with a special meaning, for example adding a section
+    /// header relies, newlines are automatically stripped from [`control`](Self::control) arguments.
+    ///
+    /// ```rust
+    /// # use roff::roff::*;
+    /// let doc = Roff::new()
+    ///     .plaintext("this newline is kept\n")
+    ///     .strip_newlines(true)
+    ///     .plaintext("but this one\nis removed.")
+    ///     .render(Apostrophes::DontHandle);
+    /// assert_eq!(doc, "this newline is kept\nbut this one is removed.");
+    /// ```
     pub fn strip_newlines(&mut self, state: bool) -> &mut Self {
         self.strip_newlines = state;
         self
@@ -109,7 +123,7 @@ impl Roff {
 
     /// Size of textual part of the payload, in bytes.
     ///
-    /// Rendered output most likely will be bigger
+    /// Rendered output will include all the control sequences so most likely will be bigger
     #[must_use]
     pub fn len(&self) -> usize {
         self.payload.len()
@@ -124,6 +138,24 @@ impl Roff {
     /// Insert a raw control sequence
     ///
     /// `name` should not contain initial `'.'`.
+    /// Arguments are taken from an iterator and escaped accordingly
+    ///
+    /// ```rust
+    /// # use ::roff::roff::*;
+    /// let doc = Roff::new()
+    ///     .control("SH", ["Section\nname with newline"])
+    ///     .render(Apostrophes::DontHandle);
+    /// assert_eq!(doc, ".SH Section\\ name\\ with\\ newline\n");
+    /// ```
+    ///
+    /// For control sequences that take no arguments you can pass `None::<&str>`
+    /// ```rust
+    /// # use ::roff::roff::*;
+    /// let doc = Roff::new()
+    ///     .control("PP", None::<&str>)
+    ///     .render(Apostrophes::DontHandle);
+    /// assert_eq!(doc, ".PP\n");
+    /// ```
     pub fn control<S, I>(&mut self, name: &str, args: I) -> &mut Self
     where
         S: AsRef<str>,
@@ -159,12 +191,35 @@ impl Roff {
     }
 
     /// Insert raw escape sequence
+    ///
+    /// You can use all the notations for the escapes, they will be copied into the output stream
+    /// as is without extra checks or escapes.
+    /// ```rust
+    /// # use roff::roff::*;
+    /// let text = Roff::new()
+    ///     .escape("\\fB")
+    ///     .plaintext("bold ")
+    ///     .escape("\\f(CR")
+    ///     .plaintext("mono bold ")
+    ///     .escape("\\f[R]")
+    ///     .plaintext("regular plaintext")
+    ///     .render(Apostrophes::DontHandle);
+    /// assert_eq!(text, "\\fBbold \\f(CRmono bold \\f[R]regular plaintext");
+    /// ```
     pub fn escape(&mut self, arg: &str) -> &mut Self {
         self.payload.push_str(Escape::Unescaped, arg);
         self
     }
 
     /// Insert a plain text string, special characters are escaped
+    ///
+    /// ```rust
+    /// # use roff::roff::*;
+    /// let doc = Roff::new()
+    ///     .plaintext(".some random text that starts with a dot")
+    ///     .render(Apostrophes::DontHandle);
+    /// assert_eq!(doc, "\\&.some random text that starts with a dot");
+    /// ```
     pub fn plaintext(&mut self, text: &str) -> &mut Self {
         if self.strip_newlines {
             self.payload.push_str(Escape::SpecialNoNewline, text);
@@ -174,7 +229,19 @@ impl Roff {
         self
     }
 
-    /// Insert one or more string slices using custom font for each
+    /// Insert one or more string slices using custom font for each one
+    ///
+    /// ```rust
+    /// # use roff::roff::*;
+    /// let doc = Roff::default()
+    ///     .text([
+    ///         (Font::Roman, "You can add an "),
+    ///         (Font::Bold, "emphasis"),
+    ///         (Font::Roman, " to some words."),
+    ///     ])
+    ///     .render(Apostrophes::DontHandle);
+    /// assert_eq!(doc, "\\fRYou can add an \\fBemphasis\\fR to some words.\\fP");
+    /// ```
     pub fn text<I, S>(&mut self, text: I) -> &mut Self
     where
         I: IntoIterator<Item = (Font, S)>,
@@ -198,6 +265,8 @@ impl Roff {
     }
 
     /// Render Roff document to `String`
+    ///
+    /// This method creates a valid ROFF document which can be fed to a ROFF implementation
     #[must_use]
     pub fn render(&self, ap: Apostrophes) -> String {
         let mut res = Vec::with_capacity(self.payload.len() * 2);
