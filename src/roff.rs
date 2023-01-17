@@ -15,6 +15,7 @@
 //! assert_eq!(doc, "\\fRhello, world\\fP");
 //! ```
 //!
+//! [groff(7)]: https://manpages.debian.org/bullseye/groff/groff.7.en.html
 //! [ROFF]: https://en.wikipedia.org/wiki/Roff_(software)
 
 use std::ops::{Add, AddAssign};
@@ -46,10 +47,10 @@ pub struct Roff {
 /// Font selector
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Font {
-    /// Currently selected font,
+    /// Currently selected font, no changes
     Current,
 
-    /// Roman font,
+    /// Roman font - regular font that should be used for most of the text
     Roman,
 
     /// Bold font
@@ -118,7 +119,7 @@ impl Roff {
         self
     }
 
-    /// Remove all the contents
+    /// Remove all the contents, retain the allocated capacity
     pub fn clear(&mut self) {
         self.payload.clear();
     }
@@ -293,6 +294,14 @@ impl Add<&Roff> for Roff {
     fn add(mut self, rhs: &Roff) -> Self::Output {
         self += rhs;
         self
+    }
+}
+
+impl<'a> Extend<&'a Roff> for Roff {
+    fn extend<T: IntoIterator<Item = &'a Roff>>(&mut self, iter: T) {
+        for i in iter {
+            *self += i;
+        }
     }
 }
 
