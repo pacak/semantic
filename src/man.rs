@@ -1,5 +1,5 @@
 //! High level interface designed to generate manpages
-
+//!
 //! # Example: generating a man page
 //! ```rust
 //! # use ::roff::{man::*, write_updated};
