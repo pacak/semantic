@@ -13,11 +13,8 @@
 //! # use roff::semantic::*;
 //! let mut doc = Semantic::default();
 //!
-//! doc.section("Section name");
-//!
-//! // hmmm not sure which one is better
-//! doc += paragraph([text("Program takes "), literal("--help"), text(" argument")]);
-//! doc.paragraph([text("Program takes "), literal("--help"), text(" argument")]);
+//! doc.section("Section name")
+//!     .paragraph([text("Program takes "), literal("--help"), text(" argument")]);
 //! ```
 //!
 //! You can append any type that implements trait [`SemWrite`] using `+=`, notable examples of such
@@ -28,11 +25,14 @@
 //! [`mono`], [`text`] and [`important`].
 //!
 
-use crate::roff::Font;
-pub use crate::{man::Manpage, monoid::FreeMonoid};
+pub use crate::{
+    man::Manpage,
+    shared::{Section, Style},
+};
+use crate::{monoid::FreeMonoid, roff::Font};
 use std::ops::{Add, AddAssign};
 
-/// Semantic document
+/// Semantic document that can be rendered
 #[derive(Debug, Clone, Default)]
 pub struct Semantic(FreeMonoid<Sem>);
 
@@ -70,9 +70,83 @@ impl Semantic {
     where
         S: SemWrite,
     {
-        *self += paragraph(text);
+        *self += Scoped(Block::Paragraph, text);
         self
     }
+
+    pub fn numbered_list<S>(&mut self, items: S) -> &mut Self
+    where
+        S: SemWrite,
+    {
+        *self += Scoped(Block::NumberedList, items);
+        self
+    }
+
+    pub fn unnumbered_list<S>(&mut self, items: S) -> &mut Self
+    where
+        S: SemWrite,
+    {
+        *self += Scoped(Block::UnnumberedList, items);
+        self
+    }
+
+    pub fn definition_list<S>(&mut self, items: S) -> &mut Self
+    where
+        S: SemWrite,
+    {
+        *self += Scoped(Block::DefinitionList, items);
+        self
+    }
+
+    pub fn item<S>(&mut self, item: S) -> &mut Self
+    where
+        S: SemWrite,
+    {
+        *self += Scoped(Block::ListItem, item);
+        self
+    }
+
+    pub fn term<T>(&mut self, term: T) -> &mut Self
+    where
+        T: SemWrite,
+    {
+        *self += Scoped(Block::ListKey, term);
+        self
+    }
+    pub fn definition<T, D>(&mut self, term: T, definition: D) -> &mut Self
+    where
+        T: SemWrite,
+        D: SemWrite,
+    {
+        *self += Scoped(Block::ListKey, term);
+        *self += Scoped(Block::ListItem, definition);
+        self
+    }
+
+    pub fn text<S>(&mut self, text: S) -> &mut Self
+    where
+        S: SemWrite,
+    {
+        *self += text;
+        self
+    }
+}
+
+struct SemWriteFn<F>(F);
+impl<F> SemWrite for SemWriteFn<F>
+where
+    F: Fn(&mut Semantic),
+{
+    fn sem_write(self, to: &mut Semantic) {
+        (self.0)(to)
+    }
+}
+
+pub fn write_with<F>(action: F) -> impl SemWrite
+where
+    F: Fn(&mut Semantic) + Sized,
+{
+    SemWriteFn(action)
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -82,62 +156,11 @@ enum Sem {
     Style(Style),
 }
 
-pub use crate::shared::{Section, Style};
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum ListStyle {
-    Numbered,
-    Unnumbered,
-    Definition,
-}
-
-impl From<ListStyle> for Block {
-    fn from(value: ListStyle) -> Self {
-        match value {
-            ListStyle::Numbered => Block::NumberedList,
-            ListStyle::Unnumbered => Block::UnnumberedList,
-            ListStyle::Definition => Block::DefinitionList,
-        }
-    }
-}
-
-pub fn list<T, I>(style: ListStyle, items: I) -> impl SemWrite
-where
-    T: SemWrite,
-    I: IntoIterator<Item = T>,
-{
-    Scoped(
-        Block::from(style),
-        items.into_iter().map(|i| Scoped(Block::ListItem, i)),
-    )
-}
-
-impl<K, V> SemWrite for KeyVal<K, V>
-where
-    K: SemWrite,
-    V: SemWrite,
-{
-    fn sem_write(self, to: &mut Semantic) {
-        *to += Scoped(Block::ListKey, self.key);
-        *to += Scoped(Block::ListKey, self.val);
-    }
-}
-struct KeyVal<K, V> {
-    key: K,
-    val: V,
-}
-
-impl From<Style> for Sem {
-    fn from(value: Style) -> Self {
-        Sem::Style(value)
-    }
-}
-
 /// Logical block of text
 ///
 /// List items are nested within lists, otherwise they should go on the top level
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum Block {
+enum Block {
     /// Section header
     Section,
     /// Subsection header
@@ -160,120 +183,103 @@ pub enum Block {
     ListItem,
 }
 
-pub use semwrite::*;
-mod semwrite {
-    use super::*;
+pub trait SemWrite {
+    fn sem_write(self, to: &mut Semantic);
+}
 
-    pub trait SemWrite {
-        fn sem_write(self, to: &mut Semantic);
+// -------------------------------------------------------------
+impl<S> AddAssign<S> for Semantic
+where
+    S: SemWrite,
+{
+    fn add_assign(&mut self, rhs: S) {
+        rhs.sem_write(self);
     }
+}
 
-    // -------------------------------------------------------------
-    impl<S> AddAssign<S> for Semantic
-    where
-        S: SemWrite,
-    {
-        fn add_assign(&mut self, rhs: S) {
-            rhs.sem_write(self);
-        }
+// -------------------------------------------------------------
+pub struct Styled<T>(pub Style, pub T);
+
+// I want to be able to write styled strings, characters and iterators
+//
+// doc += norm("asdf");
+// doc += switch('-');
+// doc += switch('v');
+//
+// doc += [switch('-'), switch('v')];
+// doc += [switch("--"), switch("verbose")];
+//
+
+impl SemWrite for Styled<&str> {
+    fn sem_write(self, to: &mut Semantic) {
+        to.0.squash = true;
+        to.0.push_str(Sem::Style(self.0), self.1);
     }
+}
 
-    // -------------------------------------------------------------
-    pub struct Styled<T>(pub Style, pub T);
-
-    // I want to be able to write styled strings, characters and iterators
-    //
-    // doc += norm("asdf");
-    // doc += switch('-');
-    // doc += switch('v');
-    //
-    // doc += [switch('-'), switch('v')];
-    // doc += [switch("--"), switch("verbose")];
-    //
-
-    impl SemWrite for Styled<&str> {
-        fn sem_write(self, to: &mut Semantic) {
-            to.0.squash = true;
-            to.0.push_str(Sem::Style(self.0), self.1);
-        }
+impl SemWrite for Styled<String> {
+    fn sem_write(self, to: &mut Semantic) {
+        to.0.squash = true;
+        to.0.push_str(Sem::Style(self.0), &self.1);
     }
+}
 
-    impl SemWrite for Styled<String> {
-        fn sem_write(self, to: &mut Semantic) {
-            to.0.squash = true;
-            to.0.push_str(Sem::Style(self.0), &self.1);
-        }
+impl SemWrite for Styled<char> {
+    fn sem_write(self, to: &mut Semantic) {
+        to.0.squash = true;
+        to.0.push(Sem::Style(self.0), self.1);
     }
+}
 
-    impl SemWrite for Styled<char> {
-        fn sem_write(self, to: &mut Semantic) {
-            to.0.squash = true;
-            to.0.push(Sem::Style(self.0), self.1);
-        }
-    }
+pub fn literal<T>(payload: T) -> Styled<T> {
+    Styled(Style::Literal, payload)
+}
 
-    pub fn literal<T>(payload: T) -> Styled<T> {
-        Styled(Style::Literal, payload)
-    }
+pub fn metavar<T>(payload: T) -> Styled<T> {
+    Styled(Style::Metavar, payload)
+}
 
-    pub fn metavar<T>(payload: T) -> Styled<T> {
-        Styled(Style::Metavar, payload)
-    }
+pub fn mono<T>(payload: T) -> Styled<T> {
+    Styled(Style::Mono, payload)
+}
 
-    pub fn mono<T>(payload: T) -> Styled<T> {
-        Styled(Style::Mono, payload)
-    }
+pub fn text<T>(payload: T) -> Styled<T> {
+    Styled(Style::Text, payload)
+}
 
-    pub fn text<T>(payload: T) -> Styled<T> {
-        Styled(Style::Text, payload)
-    }
+pub fn important<T>(payload: T) -> Styled<T> {
+    Styled(Style::Important, payload)
+}
 
-    pub fn important<T>(payload: T) -> Styled<T> {
-        Styled(Style::Important, payload)
-    }
+/*
+pub fn paragraph<T>(payload: T) -> Scoped<T> {
+    Scoped(Block::Paragraph, payload)
+}*/
 
-    pub fn paragraph<T>(payload: T) -> Scoped<T> {
-        Scoped(Block::Paragraph, payload)
+// -------------------------------------------------------------
+struct Scoped<T>(pub Block, pub T);
+impl<S> SemWrite for Scoped<S>
+where
+    S: SemWrite,
+{
+    fn sem_write(self, to: &mut Semantic) {
+        to.0.squash = false;
+        to.0.push_str(Sem::BlockStart(self.0), "");
+        self.1.sem_write(to);
+        to.0.squash = false;
+        to.0.push_str(Sem::BlockEnd(self.0), "");
     }
+}
 
-    // -------------------------------------------------------------
-    pub struct Scoped<T>(pub Block, pub T);
-    impl<S> SemWrite for Scoped<S>
-    where
-        S: SemWrite,
-    {
-        fn sem_write(self, to: &mut Semantic) {
-            to.0.squash = false;
-            to.0.push_str(Sem::BlockStart(self.0), "");
-            self.1.sem_write(to);
-            to.0.squash = false;
-            to.0.push_str(Sem::BlockEnd(self.0), "");
-        }
-    }
-    pub struct WithScope<F>(pub Block, pub F);
-    impl<F> SemWrite for WithScope<F>
-    where
-        F: Fn(&mut Semantic),
-    {
-        fn sem_write(self, to: &mut Semantic) {
-            to.0.squash = false;
-            to.0.push_str(Sem::BlockStart(self.0), "");
-            self.1(to);
-            to.0.squash = false;
-            to.0.push_str(Sem::BlockEnd(self.0), "");
-        }
-    }
-
-    // -------------------------------------------------------------
-    impl<S, I> SemWrite for I
-    where
-        S: SemWrite,
-        I: IntoIterator<Item = S>,
-    {
-        fn sem_write(self, to: &mut Semantic) {
-            for s in self {
-                s.sem_write(to);
-            }
+// -------------------------------------------------------------
+impl<S, I> SemWrite for I
+where
+    S: SemWrite,
+    I: IntoIterator<Item = S>,
+{
+    fn sem_write(self, to: &mut Semantic) {
+        for s in self {
+            s.sem_write(to);
         }
     }
 }
@@ -372,15 +378,13 @@ impl Semantic {
         res
     }
 
-    pub fn render_to_manpage(&self, title: &str, section: Section, extra: &[&str]) -> String {
-        let mut res = Manpage::new(title, section, extra);
-
+    pub fn render_to_manpage(&self, mut manpage: Manpage) -> String {
         let mut capture = (String::new(), false);
         for (meta, payload) in &self.0 {
             match meta {
                 Sem::BlockStart(b) => match b {
                     Block::Paragraph => {
-                        res.raw().strip_newlines(true);
+                        manpage.raw().strip_newlines(true);
                     }
                     Block::Section => {
                         capture.1 = true;
@@ -393,31 +397,40 @@ impl Semantic {
                     Block::DefinitionList => {}
                     Block::ListItem => {}
                     Block::ListKey => {
-                        res.raw().control("TP", None::<&str>).strip_newlines(true);
+                        manpage
+                            .raw()
+                            .control("TP", None::<&str>)
+                            .strip_newlines(true);
                     }
                 },
                 Sem::BlockEnd(b) => match b {
                     Block::Paragraph => {
-                        res.raw().strip_newlines(false).control("PP", None::<&str>);
+                        manpage
+                            .raw()
+                            .strip_newlines(false)
+                            .control("PP", None::<&str>);
                     }
                     Block::Section => {
                         capture.1 = false;
-                        res.section(&capture.0);
+                        manpage.section(&capture.0);
                         capture.0.clear();
                     }
                     Block::Subsection => {
                         capture.1 = false;
-                        res.subsection(&capture.0);
+                        manpage.subsection(&capture.0);
                         capture.0.clear();
                     }
                     Block::UnnumberedList => todo!(),
                     Block::NumberedList => todo!(),
                     Block::DefinitionList => {}
                     Block::ListItem => {
-                        res.raw().control("PP", None::<&str>).strip_newlines(false);
+                        manpage
+                            .raw()
+                            .control("PP", None::<&str>)
+                            .strip_newlines(false);
                     }
                     Block::ListKey => {
-                        res.raw().roff_linebreak();
+                        manpage.raw().roff_linebreak();
                     }
                 },
                 Sem::Style(_) if capture.1 => {
@@ -425,43 +438,24 @@ impl Semantic {
                 }
                 Sem::Style(s) => match s {
                     Style::Literal => {
-                        res.raw().text([(Font::MonoBold, payload)]);
+                        manpage.raw().text([(Font::MonoBold, payload)]);
                     }
                     Style::Metavar => {
-                        res.raw().text([(Font::Italic, payload)]);
+                        manpage.raw().text([(Font::Italic, payload)]);
                     }
                     Style::Mono => {
-                        res.raw().text([(Font::Mono, payload)]);
+                        manpage.raw().text([(Font::Mono, payload)]);
                     }
                     Style::Text => {
-                        res.raw().text([(Font::Roman, payload)]);
+                        manpage.raw().text([(Font::Roman, payload)]);
                     }
                     Style::Important => {
-                        res.raw().text([(Font::Bold, payload)]);
+                        manpage.raw().text([(Font::Bold, payload)]);
                     }
                 },
             }
         }
 
-        res.render()
+        manpage.render()
     }
 }
-
-// document consist of multiple sections
-// each section can contain section level elements:
-// - subsections
-// - paragraphs
-// - lists
-// - definition lists
-//
-//
-// each subsection can contain same things as section minus other subsections
-//
-// - paragraphs, lists and definition lists  contain inline elements:
-//
-//
-// Inline elements are
-// - plain text
-// - various flag things:
-//   optional/required/many/or flags, metavar, command
-//
