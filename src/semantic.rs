@@ -17,9 +17,8 @@
 //!     .paragraph([text("Program takes "), literal("--help"), text(" argument")]);
 //! ```
 //!
-//! You can append any type that implements trait [`SemWrite`] using `+=`, notable examples of such
-//! types are [`Styled`], [`Scoped`] and [`WithScope`]. `SemWrite` is implemented on any type that
-//! implements [`IntoIterator`] of other `SemWrite` items.
+//! You can append any type that implements trait [`SemWrite`] using `+=`.
+//! `SemWrite` is implemented on any type that implements [`IntoIterator`] of other `SemWrite` items.
 //!
 //! You can also apply style to strings or characters using using [`literal`], [`metavar`],
 //! [`mono`], [`text`] and [`important`].
@@ -194,7 +193,13 @@ impl Semantic {
 }
 
 /// A semantic document fragment that can be appended to [`Semantic`] document
+///
+/// Semantic documents are designed with composing them from arbitrary typed chunks, not just
+/// styled text. For example if document talks about command line option it should be possible to
+/// insert this option by referring to a parser rather than by a string so documentation becomes
+/// checked with a compiler
 pub trait SemWrite {
+    /// Append a fragment of semantic document
     fn sem_write(self, to: &mut Semantic);
 }
 
@@ -208,6 +213,23 @@ where
     }
 }
 
+/// Helper method to combine several semantic fragments in a single write operation
+///
+/// If you are trying to create a paragraph of text from several fragments of different types you
+/// can do something like this:
+///
+/// ```rust
+/// # use roff::semantic::*;
+/// let mut doc = Semantic::default();
+/// doc.paragraph(write_with(|doc| {
+///     doc.text([literal('-'), literal('h')]);
+///     doc.text([text(" and "), literal("--help"), text(" prints usage")]);
+/// }));
+/// let doc = doc.render_to_markdown();
+///
+/// let expected = "\n\n<tt><b>\\-h</b></tt> and <tt><b>\\-\\-help</b></tt> prints usage\n\n";
+/// assert_eq!(doc, expected);
+/// ```
 pub fn write_with<F>(action: F) -> impl SemWrite
 where
     F: Fn(&mut Semantic) + Sized,
@@ -259,8 +281,25 @@ where
     }
 }
 
-// -------------------------------------------------------------
-pub struct Styled<T>(pub Style, pub T);
+/// Textual semantic fragment with attached style
+///
+/// Create it with [`literal`], [`metavar`] and similar methods. Contents inside of it are not
+/// limited to string slices and document structure is optimized such that two sequential
+/// styled writes with the same type produce the same results as a single write:
+///
+/// ```rust
+/// # use roff::semantic::*;
+/// // those two functions produce identical results, first one performs extra allocations
+/// // while the second one is allocation free
+/// fn write_long_name_1(doc: &mut Semantic, name: &str) {
+///     doc.text(literal(format!("--{}", name)));
+/// }
+///
+/// fn write_long_name_2(doc: &mut Semantic, name: &str) {
+///     doc.text([literal("--"), literal(name)]);
+/// }
+/// ```
+pub struct Styled<T>(Style, T);
 
 impl SemWrite for Styled<&str> {
     fn sem_write(self, to: &mut Semantic) {
@@ -290,22 +329,69 @@ impl SemWrite for Styled<char> {
     }
 }
 
+/// Literal semantic fragment
+///
+/// This fragment represents something user needs to type literally, usually used for command names
+/// or option flag names:
+///
+/// ```rust
+/// # use roff::semantic::*;
+/// let mut doc = Semantic::default();
+/// doc.text([text("Pass "), literal("--help"), text(" to print the usage")]);
+/// let doc = doc.render_to_markdown();
+/// let expected = "Pass <tt><b>--help</b></tt> to print the usage";
+///
+/// assert_eq!(doc, expected);
+/// ```
 pub fn literal<T>(payload: T) -> Styled<T> {
     Styled(Style::Literal, payload)
 }
 
+/// Metavariable semantic fragment
+///
+/// This fragment represents something user needs to replace with a different input, usually used for
+/// argument file name placeholders:
+///
+/// ```rust
+/// # use roff::semantic::*;
+/// let mut doc = Semantic::default();
+/// doc.text([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
+/// let doc = doc.render_to_markdown();
+/// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+///
+/// assert_eq!(doc, expected);
+/// ```
 pub fn metavar<T>(payload: T) -> Styled<T> {
     Styled(Style::Metavar, payload)
 }
 
-pub fn mono<T>(payload: T) -> Styled<T> {
-    Styled(Style::Mono, payload)
-}
-
+/// Plain text semantic fragment
+///
+/// This fragment should be used for any boring plaintext fragments:
+///
+/// ```rust
+/// # use roff::semantic::*;
+/// let mut doc = Semantic::default();
+/// doc.text([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
+/// let doc = doc.render_to_markdown();
+/// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+///
+/// assert_eq!(doc, expected);
+/// ```
 pub fn text<T>(payload: T) -> Styled<T> {
     Styled(Style::Text, payload)
 }
 
+/// Monospaced text semantic fragment
+///
+/// Can be useful to insert fixed text fragments for formatting or semantic emphasis
+pub fn mono<T>(payload: T) -> Styled<T> {
+    Styled(Style::Mono, payload)
+}
+
+/// Important text semantic fragment
+///
+/// Can be useful for any text that should attract users's attention
 pub fn important<T>(payload: T) -> Styled<T> {
     Styled(Style::Important, payload)
 }
