@@ -21,7 +21,7 @@ mod shared;
 ///
 /// # Errors
 /// Reports any file IO errors
-pub fn write_updated<P: AsRef<Path>>(path: P, value: &str) -> std::io::Result<bool> {
+pub fn write_updated<P: AsRef<Path>>(path: P, value: &[u8]) -> std::io::Result<bool> {
     use std::fs::OpenOptions;
     use std::io::{Read, Seek};
     let mut file = OpenOptions::new()
@@ -29,14 +29,14 @@ pub fn write_updated<P: AsRef<Path>>(path: P, value: &str) -> std::io::Result<bo
         .read(true)
         .create(true)
         .open(path)?;
-    let mut current_val = String::new();
-    file.read_to_string(&mut current_val)?;
+    let mut current_val = Vec::new();
+    file.read_to_end(&mut current_val)?;
     if current_val == value {
         Ok(false)
     } else {
         file.set_len(0)?;
         file.seek(std::io::SeekFrom::Start(0))?;
-        std::io::Write::write_all(&mut file, value.as_bytes())?;
+        std::io::Write::write_all(&mut file, value)?;
         Ok(true)
     }
 }

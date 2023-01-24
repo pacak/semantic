@@ -227,7 +227,7 @@ where
 /// }));
 /// let doc = doc.render_to_markdown();
 ///
-/// let expected = "\n\n<tt><b>\\-h</b></tt> and <tt><b>\\-\\-help</b></tt> prints usage\n\n";
+/// let expected = "<tt><b>\\-h</b></tt> and <tt><b>\\-\\-help</b></tt> prints usage";
 /// assert_eq!(doc, expected);
 /// ```
 pub fn write_with<F>(action: F) -> impl SemWrite
@@ -339,7 +339,7 @@ impl SemWrite for Styled<char> {
 /// let mut doc = Semantic::default();
 /// doc.text([text("Pass "), literal("--help"), text(" to print the usage")]);
 /// let doc = doc.render_to_markdown();
-/// let expected = "Pass <tt><b>--help</b></tt> to print the usage";
+/// let expected = "Pass <tt><b>\\-\\-help</b></tt> to print the usage";
 ///
 /// assert_eq!(doc, expected);
 /// ```
@@ -357,7 +357,7 @@ pub fn literal<T>(payload: T) -> Styled<T> {
 /// let mut doc = Semantic::default();
 /// doc.text([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
-/// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+/// let expected = "To save output to file: <tt><b>\\-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
 ///
 /// assert_eq!(doc, expected);
 /// ```
@@ -374,7 +374,7 @@ pub fn metavar<T>(payload: T) -> Styled<T> {
 /// let mut doc = Semantic::default();
 /// doc.text([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
-/// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+/// let expected = "To save output to file: <tt><b>\\-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
 ///
 /// assert_eq!(doc, expected);
 /// ```
@@ -423,69 +423,92 @@ where
     }
 }
 
+fn at_newline(res: &mut String) {
+    if !(res.is_empty() || res.ends_with("\n")) {
+        res.push('\n');
+    }
+}
+
 impl Semantic {
     /// Render semantic document into markdown
     pub fn render_to_markdown(&self) -> String {
         let mut res = String::new();
+
+        // [1]: Items inside definition lists should be encased in <dd> instead of <li>
+        // Some reason rustdoc replaces -- with unicode "–" unless it is inside definition lists.
+        // because of this code escapes dashes with '\' in "mono" and "literal" fragments unless
+        // inside definition lists
         let mut definition_list = false;
-        let mut escape_dash = false;
         for (meta, payload) in &self.0 {
             match meta {
-                Sem::BlockStart(block) => res.push_str(match block {
-                    LogicalBlock::DefinitionList => {
-                        definition_list = true;
-                        "<dl>"
-                    }
-                    LogicalBlock::ListItem => {
-                        if definition_list {
-                            "<dd>"
-                        } else {
-                            "<li>"
+                Sem::BlockStart(block) => {
+                    at_newline(&mut res);
+                    match block {
+                        LogicalBlock::DefinitionList => {
+                            definition_list = true;
+                            res.push_str("<dl>");
+                        }
+                        LogicalBlock::NumberedList => {
+                            definition_list = false;
+                            res.push_str("<ol>")
+                        }
+                        LogicalBlock::UnnumberedList => {
+                            definition_list = false;
+                            res.push_str("<ul>");
+                        }
+                        LogicalBlock::ListItem => {
+                            if definition_list {
+                                res.push_str("<dd>")
+                            } else {
+                                res.push_str("<li>")
+                            }
+                        }
+                        LogicalBlock::ListKey => {
+                            res.push_str("<dt>");
+                        }
+                        LogicalBlock::Paragraph => {
+                            // block starts at a new line already, add one more here
+                            // so paragraph is separated from a previous block of text by an empty
+                            // line
+                            if !res.is_empty() {
+                                res.push('\n');
+                            }
+                        }
+                        LogicalBlock::Section => {
+                            res.push_str("# ");
+                        }
+                        LogicalBlock::Subsection => {
+                            res.push_str("## ");
                         }
                     }
-                    LogicalBlock::ListKey => "<dt>",
-                    LogicalBlock::NumberedList => {
-                        definition_list = false;
-                        "<ol>"
-                    }
-                    LogicalBlock::Paragraph => {
-                        escape_dash = true;
-                        "\n\n"
-                    }
-                    LogicalBlock::Section => "\n\n# ",
-                    LogicalBlock::Subsection => "\n\n## ",
-                    LogicalBlock::UnnumberedList => {
-                        definition_list = false;
-                        "<ul>"
-                    }
-                }),
-                Sem::BlockEnd(block) => res.push_str(match block {
-                    LogicalBlock::DefinitionList => "</dl>\n",
+                }
+                Sem::BlockEnd(block) => match block {
+                    LogicalBlock::DefinitionList => res.push_str("</dl>"),
+                    LogicalBlock::UnnumberedList => res.push_str("</ul>"),
+                    LogicalBlock::NumberedList => res.push_str("</ol>"),
                     LogicalBlock::ListItem => {
                         if definition_list {
-                            "</dd>\n"
+                            res.push_str("</dd>")
                         } else {
-                            "</li>\n"
+                            res.push_str("</li>")
                         }
                     }
-                    LogicalBlock::ListKey => "</dt>\n",
-                    LogicalBlock::NumberedList => "</ol>\n",
-                    LogicalBlock::Paragraph => {
-                        escape_dash = false;
-                        "\n\n"
-                    }
-                    LogicalBlock::Section => "\n\n",
-                    LogicalBlock::Subsection => "\n\n",
-                    LogicalBlock::UnnumberedList => "</ul>\n",
-                }),
+                    LogicalBlock::ListKey => res.push_str("</dt>"),
+                    LogicalBlock::Paragraph | LogicalBlock::Section | LogicalBlock::Subsection => {}
+                },
                 Sem::Style(style) => match style {
                     Style::Literal => {
                         res.push_str("<tt><b>");
-                        for c in payload.chars() {
-                            if c == '-' && escape_dash {
-                                res.push('\\');
+                        // [1]
+                        if definition_list {
+                            res.push_str(payload);
+                        } else {
+                            for c in payload.chars() {
+                                if c == '-' {
+                                    res.push('\\');
+                                }
+                                res.push(c);
                             }
-                            res.push(c);
                         }
                         res.push_str("</b></tt>");
                     }
@@ -496,11 +519,16 @@ impl Semantic {
                     }
                     Style::Mono => {
                         res.push_str("<tt>");
-                        for c in payload.chars() {
-                            if c == '-' && escape_dash {
-                                res.push('\\');
+                        // [1]
+                        if definition_list {
+                            res.push_str(payload);
+                        } else {
+                            for c in payload.chars() {
+                                if c == '-' {
+                                    res.push('\\');
+                                }
+                                res.push(c);
                             }
-                            res.push(c);
                         }
                         res.push_str("</tt>");
                     }
@@ -522,6 +550,9 @@ impl Semantic {
     ///
     /// You need to provide a [`Manpage`] to be used as a header
     pub fn render_to_manpage(&self, mut manpage: Manpage) -> String {
+        // sections and subsections are implemented with .SH and .SS
+        // control messages and it is easier to provide them right away
+        // We also strip styling from them and change sections to all caps
         let mut capture = (String::new(), false);
         for (meta, payload) in &self.0 {
             match meta {
@@ -555,7 +586,7 @@ impl Semantic {
                     }
                     LogicalBlock::Section => {
                         capture.1 = false;
-                        manpage.section(&capture.0);
+                        manpage.section(&capture.0.to_uppercase());
                         capture.0.clear();
                     }
                     LogicalBlock::Subsection => {

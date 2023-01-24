@@ -23,7 +23,7 @@
 //!     .render();
 //! # use std::{path::PathBuf, env::var_os};
 //! let path = PathBuf::from(var_os("CARGO_MANIFEST_DIR").unwrap()).join("corrupt.1");
-//! write_updated(path, &page).unwrap();
+//! write_updated(path, page.as_bytes()).unwrap();
 //! # drop(page);
 //! ```
 //!

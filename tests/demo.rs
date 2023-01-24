@@ -2,16 +2,55 @@ use ::roff::write_updated;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-fn troff_file() -> PathBuf {
+fn file(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
         .join("tests")
-        .join("demo.troff")
+        .join(name)
 }
 
-fn expected_file() -> PathBuf {
-    PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
-        .join("tests")
-        .join("demo.expected")
+#[test]
+fn semantic_to_markdown_and_man() {
+    use ::roff::man::Manpage;
+    use ::roff::semantic::*;
+    let mut doc = Semantic::default();
+    doc.section("Description");
+    doc.paragraph([text("Pass "), literal("--help"), text(" for info.")]);
+    doc.section("Options");
+    doc.definition_list([write_with(|doc| {
+        doc.definition(
+            [literal("-v"), mono(" "), literal("--verbose")],
+            text("Use verbose output"),
+        )
+        .definition(literal("--help"), text("Print usage"))
+        .definition(literal("--version"), text("Print version"));
+    })]);
+    doc.paragraph(text("Program exits when done."));
+
+    let expected = "\
+# Description
+
+Pass <tt><b>\\-\\-help</b></tt> for info.
+# Options
+<dl>
+<dt><tt><b>-v</b></tt><tt> </tt><tt><b>--verbose</b></tt></dt>
+<dd>Use verbose output</dd>
+<dt><tt><b>--help</b></tt></dt>
+<dd>Print usage</dd>
+<dt><tt><b>--version</b></tt></dt>
+<dd>Print version</dd></dl>
+
+Program exits when done.";
+    assert_eq!(doc.render_to_markdown(), expected);
+
+    let man = Manpage::new("SIMPLE", Section::General, &[]);
+    let x = doc.render_to_manpage(man);
+    let sample = file("sample.1");
+    let changed = write_updated(&sample, x.as_bytes()).unwrap();
+    assert!(
+        !changed,
+        "Changes are detected to generated {:?} file",
+        sample
+    );
 }
 
 #[test]
@@ -57,16 +96,16 @@ fn rendering_to_file_works() {
         ])
         .render();
 
-    let demo = troff_file();
-    let changed = write_updated(&demo, &page).unwrap();
+    let demo = file("demo.troff");
+    let changed = write_updated(&demo, page.as_bytes()).unwrap();
     assert!(!changed, "Changes detected to generated {:?} file", demo);
 }
 
 #[cfg(unix)]
 #[test]
 fn rendered_file_makes_sense_to_troff() {
-    let expected = expected_file();
-    let demo = troff_file();
+    let expected = file("demo.expected");
+    let demo = file("demo.troff");
 
     let child = Command::new("troff")
         .args(["-a", "-mman"])
@@ -79,7 +118,7 @@ fn rendered_file_makes_sense_to_troff() {
     assert!(out.status.success());
 
     let output = String::from_utf8_lossy(&out.stdout);
-    let changed = write_updated(&expected, &output).unwrap();
+    let changed = write_updated(&expected, output.as_bytes()).unwrap();
     assert!(
         !changed,
         "Changes detected to generated {:?} file",
