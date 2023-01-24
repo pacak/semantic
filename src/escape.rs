@@ -99,7 +99,7 @@ where
                     }
                 }
                 Escape::Special | Escape::SpecialNoNewline => {
-                    if at_line_start && (c == b'.' || c == b'\'' || c == b' ') {
+                    if at_line_start && (c == b'.' || c == b'\'') {
                         out.extend_from_slice(b"\\&");
                     }
                     if c == b'\\' || c == b'-' {

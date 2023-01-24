@@ -333,7 +333,7 @@ mod test {
         let text = Roff::default()
             .plaintext("foo\n.bar\n'yo\n hmm")
             .render(NO_AP);
-        assert_eq!("foo\n\\&.bar\n\\&'yo\n\\& hmm", text);
+        assert_eq!("foo\n\\&.bar\n\\&'yo\n hmm", text);
     }
 
     #[test]

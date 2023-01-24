@@ -428,6 +428,12 @@ fn at_newline(res: &mut String) {
         res.push('\n');
     }
 }
+fn blank_line(res: &mut String) {
+    if !res.is_empty() {
+        at_newline(res);
+        res.push('\n');
+    }
+}
 
 impl Semantic {
     /// Render semantic document into markdown
@@ -441,47 +447,46 @@ impl Semantic {
         let mut definition_list = false;
         for (meta, payload) in &self.0 {
             match meta {
-                Sem::BlockStart(block) => {
-                    at_newline(&mut res);
-                    match block {
-                        LogicalBlock::DefinitionList => {
-                            definition_list = true;
-                            res.push_str("<dl>");
-                        }
-                        LogicalBlock::NumberedList => {
-                            definition_list = false;
-                            res.push_str("<ol>")
-                        }
-                        LogicalBlock::UnnumberedList => {
-                            definition_list = false;
-                            res.push_str("<ul>");
-                        }
-                        LogicalBlock::ListItem => {
-                            if definition_list {
-                                res.push_str("<dd>")
-                            } else {
-                                res.push_str("<li>")
-                            }
-                        }
-                        LogicalBlock::ListKey => {
-                            res.push_str("<dt>");
-                        }
-                        LogicalBlock::Paragraph => {
-                            // block starts at a new line already, add one more here
-                            // so paragraph is separated from a previous block of text by an empty
-                            // line
-                            if !res.is_empty() {
-                                res.push('\n');
-                            }
-                        }
-                        LogicalBlock::Section => {
-                            res.push_str("# ");
-                        }
-                        LogicalBlock::Subsection => {
-                            res.push_str("## ");
+                Sem::BlockStart(block) => match block {
+                    LogicalBlock::DefinitionList => {
+                        blank_line(&mut res);
+                        definition_list = true;
+                        res.push_str("<dl>");
+                    }
+                    LogicalBlock::NumberedList => {
+                        blank_line(&mut res);
+                        definition_list = false;
+                        res.push_str("<ol>")
+                    }
+                    LogicalBlock::UnnumberedList => {
+                        blank_line(&mut res);
+                        definition_list = false;
+                        res.push_str("<ul>");
+                    }
+                    LogicalBlock::ListItem => {
+                        at_newline(&mut res);
+                        if definition_list {
+                            res.push_str("<dd>")
+                        } else {
+                            res.push_str("<li>")
                         }
                     }
-                }
+                    LogicalBlock::ListKey => {
+                        at_newline(&mut res);
+                        res.push_str("<dt>");
+                    }
+                    LogicalBlock::Paragraph => {
+                        blank_line(&mut res);
+                    }
+                    LogicalBlock::Section => {
+                        blank_line(&mut res);
+                        res.push_str("# ");
+                    }
+                    LogicalBlock::Subsection => {
+                        blank_line(&mut res);
+                        res.push_str("## ");
+                    }
+                },
                 Sem::BlockEnd(block) => match block {
                     LogicalBlock::DefinitionList => res.push_str("</dl>"),
                     LogicalBlock::UnnumberedList => res.push_str("</ul>"),
@@ -557,9 +562,7 @@ impl Semantic {
         for (meta, payload) in &self.0 {
             match meta {
                 Sem::BlockStart(b) => match b {
-                    LogicalBlock::Paragraph => {
-                        manpage.raw().strip_newlines(true);
-                    }
+                    LogicalBlock::Paragraph => {}
                     LogicalBlock::Section => {
                         capture.1 = true;
                     }
@@ -569,7 +572,9 @@ impl Semantic {
                     LogicalBlock::UnnumberedList => todo!(),
                     LogicalBlock::NumberedList => todo!(),
                     LogicalBlock::DefinitionList => {}
-                    LogicalBlock::ListItem => {}
+                    LogicalBlock::ListItem => {
+                        manpage.raw().strip_newlines(true);
+                    }
                     LogicalBlock::ListKey => {
                         manpage
                             .raw()
@@ -579,10 +584,7 @@ impl Semantic {
                 },
                 Sem::BlockEnd(b) => match b {
                     LogicalBlock::Paragraph => {
-                        manpage
-                            .raw()
-                            .strip_newlines(false)
-                            .control("PP", None::<&str>);
+                        manpage.raw().control("PP", None::<&str>);
                     }
                     LogicalBlock::Section => {
                         capture.1 = false;
@@ -604,7 +606,7 @@ impl Semantic {
                             .strip_newlines(false);
                     }
                     LogicalBlock::ListKey => {
-                        manpage.raw().roff_linebreak();
+                        manpage.raw().roff_linebreak().strip_newlines(false);
                     }
                 },
                 Sem::Style(_) if capture.1 => {

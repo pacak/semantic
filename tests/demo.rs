@@ -24,13 +24,15 @@ fn semantic_to_markdown_and_man() {
         .definition(literal("--help"), text("Print usage"))
         .definition(literal("--version"), text("Print version"));
     })]);
-    doc.paragraph(text("Program exits when done."));
+    doc.paragraph(text("Exit code:\n 0: if OK\n 1: if not OK"));
 
     let expected = "\
 # Description
 
 Pass <tt><b>\\-\\-help</b></tt> for info.
+
 # Options
+
 <dl>
 <dt><tt><b>-v</b></tt><tt> </tt><tt><b>--verbose</b></tt></dt>
 <dd>Use verbose output</dd>
@@ -39,7 +41,9 @@ Pass <tt><b>\\-\\-help</b></tt> for info.
 <dt><tt><b>--version</b></tt></dt>
 <dd>Print version</dd></dl>
 
-Program exits when done.";
+Exit code:
+ 0: if OK
+ 1: if not OK";
     assert_eq!(doc.render_to_markdown(), expected);
 
     let man = Manpage::new("SIMPLE", Section::General, &[]);
