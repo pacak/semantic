@@ -16,7 +16,7 @@ fn semantic_to_markdown_and_man() {
     doc.section("Description");
     doc.paragraph([text("Pass "), literal("--help"), text(" for info.")]);
     doc.section("Options");
-    doc.definition_list([write_with(|doc| {
+    doc.dlist([write_with(|doc| {
         doc.definition(
             [literal("-v"), mono(" "), literal("--verbose")],
             text("Use verbose output"),

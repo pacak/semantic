@@ -22,6 +22,7 @@ fn typical_usage() {
 ///
 /// Where identity element is `FreeMonoid::default` and binary operation is `+`
 #[derive(Debug, Clone, Eq, PartialEq)]
+#[allow(clippy::module_name_repetitions)] // FreeMonoid is a thing, Free is not
 pub struct FreeMonoid<T> {
     payload: String,
     labels: Vec<(std::ops::Range<usize>, T)>,

@@ -13,16 +13,23 @@
 //! # use roff::semantic::*;
 //! let mut doc = Semantic::default();
 //!
-//! doc.section("Section name")
-//!     .paragraph([text("Program takes "), literal("--help"), text(" argument")]);
+//! doc.section("Usage")
+//!     .paragraph([text("Program takes "), literal("--help"), text(" flag")])
+//!     .ulist(write_with(|doc| {
+//!         doc.item(text("program is written in Rust"))
+//!             .item(text("program should not crash"))
+//!             .item([text("pass "), literal("--version"), text(" to see the version")]);
+//!     }));
 //! ```
 //!
-//! You can append any type that implements trait [`SemWrite`] using `+=`.
+//! You can append any type that implements trait [`SemWrite`] using [`push`](Semantic::push).
 //! `SemWrite` is implemented on any type that implements [`IntoIterator`] of other `SemWrite` items.
 //!
 //! You can also apply style to strings or characters using using [`literal`], [`metavar`],
 //! [`mono`], [`text`] and [`important`].
 //!
+//! <details>
+//! <summary>Generated structure</summary>
 //! <style>
 //!     .sem_border * {
 //!         padding: 5px 10px;
@@ -42,27 +49,52 @@
 //!
 //! <div class="sem_border" style="padding: 5px; border: 1px dashed grey;">
 //!   <div style="border-color: blue;">
-//!     Header
+//!     Usage
 //!   </div>
 //!
 //!   <div style="border-color: red;">
-//!     <span style="border-color: blue;">Program accepts </span>
+//!     <span style="border-color: blue;">Program takes </span>
 //!     <span style="border-color: green;">--help</span>
-//!     <span style="border-color: blue;"> option to print usage</span>
+//!     <span style="border-color: blue;"> flag</span>
 //!   </div>
 //!
 //!   <div style="border-color: cyan;">
-//!     <div style="border-color: purple;">item</div>
-//!     <div style="border-color: purple;">item</div>
-//!     <div style="border-color: purple;">item</div>
+//!     <div style="border-color: purple;">
+//!       <span style="border-color: blue;">program is written in rust</span>
+//!     </div>
+//!     <div style="border-color: purple;">
+//!       <span style="border-color: blue;">program should not crash</span>
+//!     </div>
+//!     <div style="border-color: purple;">
+//!       <span style="border-color: blue;">pass </span>
+//!       <span style="border-color: green;">--version</span>
+//!       <span style="border-color: blue;"> to see the version</span>
+//!     </div>
 //!   </div>
 //!
 //!
 //! </div>
+//! </details>
 //!
+//! <details>
+//! <summary>Rendered markdown</summary>
+//!
+//! # Usage
+//!
+//! <p>Program takes <tt><b>--help</b></tt> flag</p>
+//!
+//! <ul>
+//! <li>program is written in Rust</li>
+//! <li>program should not crash</li>
+//! <li>pass <tt><b>--version</b></tt> to see the version</li>
+//! </ul>
+//! </details>
 
-pub use crate::shared::{Section, Style};
-use crate::{man::Manpage, monoid::FreeMonoid, roff::Font};
+pub use crate::{
+    man::{Manpage, Section},
+    shared::Style,
+};
+use crate::{monoid::FreeMonoid, roff::Font};
 use std::{
     borrow::Cow,
     ops::{Add, AddAssign},
@@ -90,15 +122,21 @@ impl Add<&Self> for Semantic {
 
 impl Semantic {
     /// Insert document section name
+    ///
+    /// ```rust
+    /// # use roff::semantic::*;
+    /// let mut doc = Semantic::new();
+    /// doc.section("Hello")
+    ///     .paragraph("Some plain");
+    ///
+    /// ```
     pub fn section(&mut self, name: &str) -> &mut Self {
-        *self += Scoped(LogicalBlock::Section, Styled(Style::Text, name));
-        self
+        self.push(Scoped(LogicalBlock::Section, text(name)))
     }
 
     /// Insert document subsection name
     pub fn subsection(&mut self, name: &str) -> &mut Self {
-        *self += Scoped(LogicalBlock::Subsection, Styled(Style::Text, name));
-        self
+        self.push(Scoped(LogicalBlock::Subsection, text(name)))
     }
 
     /// Add a paragraph of text
@@ -108,54 +146,49 @@ impl Semantic {
     where
         S: SemWrite,
     {
-        *self += Scoped(LogicalBlock::Paragraph, text);
-        self
+        self.push(Scoped(LogicalBlock::Paragraph, text))
     }
 
     /// Insert a numbered list
     ///
     /// Items should contain one or more [`item`](Self::item) fragments
-    pub fn numbered_list<S>(&mut self, items: S) -> &mut Self
+    pub fn nlist<S>(&mut self, items: S) -> &mut Self
     where
         S: SemWrite,
     {
-        *self += Scoped(LogicalBlock::NumberedList, items);
-        self
+        self.push(Scoped(LogicalBlock::NumberedList, items))
     }
 
     /// Insert an unnumbered list
     ///
     /// Items should contain one or more [`item`](Self::item) fragments
-    pub fn unnumbered_list<S>(&mut self, items: S) -> &mut Self
+    pub fn ulist<S>(&mut self, items: S) -> &mut Self
     where
         S: SemWrite,
     {
-        *self += Scoped(LogicalBlock::UnnumberedList, items);
-        self
+        self.push(Scoped(LogicalBlock::UnnumberedList, items))
     }
 
     /// Insert a definition list
     ///
     /// Items should contain a combination of [`item`](Self::item), [`term`](Self::term) or
     /// [`definition`](Self::definition) fragments.
-    pub fn definition_list<S>(&mut self, items: S) -> &mut Self
+    pub fn dlist<S>(&mut self, items: S) -> &mut Self
     where
         S: SemWrite,
     {
-        *self += Scoped(LogicalBlock::DefinitionList, items);
-        self
+        self.push(Scoped(LogicalBlock::DefinitionList, items))
     }
 
     /// Insert a list item
     ///
     /// Contents should be text level fragments, for [`definition
-    /// lists`](Semantic::definition_list) this will be used in the term body field.
+    /// lists`](Semantic::dlist) this will be used in the term body field.
     pub fn item<S>(&mut self, item: S) -> &mut Self
     where
         S: SemWrite,
     {
-        *self += Scoped(LogicalBlock::ListItem, item);
-        self
+        self.push(Scoped(LogicalBlock::ListItem, item))
     }
 
     /// Insert a term into a definition list
@@ -165,8 +198,7 @@ impl Semantic {
     where
         T: SemWrite,
     {
-        *self += Scoped(LogicalBlock::ListKey, term);
-        self
+        self.push(Scoped(LogicalBlock::ListKey, term))
     }
 
     /// Insert a definition into a definition list
@@ -177,18 +209,54 @@ impl Semantic {
         T: SemWrite,
         D: SemWrite,
     {
-        *self += Scoped(LogicalBlock::ListKey, term);
-        *self += Scoped(LogicalBlock::ListItem, definition);
+        self.push(Scoped(LogicalBlock::ListKey, term));
+        self.push(Scoped(LogicalBlock::ListItem, definition));
         self
     }
 
-    /// Insert a text level item
-    pub fn text<S>(&mut self, text: S) -> &mut Self
+    /// Append
+    #[inline(always)]
+    pub fn push<S>(&mut self, text: S) -> &mut Self
     where
         S: SemWrite,
     {
-        *self += text;
+        text.sem_write(self);
         self
+    }
+
+    pub fn mono<S>(&mut self, payload: S) -> &mut Self
+    where
+        S: AsRef<str>,
+    {
+        self.push(mono(payload.as_ref()))
+    }
+
+    pub fn literal<S>(&mut self, payload: S) -> &mut Self
+    where
+        S: AsRef<str>,
+    {
+        self.push(literal(payload.as_ref()))
+    }
+
+    pub fn metavar<S>(&mut self, payload: S) -> &mut Self
+    where
+        S: AsRef<str>,
+    {
+        self.push(metavar(payload.as_ref()))
+    }
+
+    pub fn text<S>(&mut self, payload: S) -> &mut Self
+    where
+        S: AsRef<str>,
+    {
+        self.push(text(payload.as_ref()))
+    }
+
+    pub fn important<S>(&mut self, payload: S) -> &mut Self
+    where
+        S: AsRef<str>,
+    {
+        self.push(important(payload.as_ref()))
     }
 }
 
@@ -209,7 +277,7 @@ where
     F: Fn(&mut Semantic),
 {
     fn sem_write(self, to: &mut Semantic) {
-        (self.0)(to)
+        (self.0)(to);
     }
 }
 
@@ -222,8 +290,8 @@ where
 /// # use roff::semantic::*;
 /// let mut doc = Semantic::default();
 /// doc.paragraph(write_with(|doc| {
-///     doc.text([literal('-'), literal('h')]);
-///     doc.text([text(" and "), literal("--help"), text(" prints usage")]);
+///     doc.push([literal('-'), literal('h')]);
+///     doc.push([text(" and "), literal("--help"), text(" prints usage")]);
 /// }));
 /// let doc = doc.render_to_markdown();
 ///
@@ -271,6 +339,7 @@ enum LogicalBlock {
     ListItem,
 }
 
+/*
 // -------------------------------------------------------------
 impl<S> AddAssign<S> for Semantic
 where
@@ -279,7 +348,7 @@ where
     fn add_assign(&mut self, rhs: S) {
         rhs.sem_write(self);
     }
-}
+}*/
 
 /// Textual semantic fragment with attached style
 ///
@@ -292,11 +361,11 @@ where
 /// // those two functions produce identical results, first one performs extra allocations
 /// // while the second one is allocation free
 /// fn write_long_name_1(doc: &mut Semantic, name: &str) {
-///     doc.text(literal(format!("--{}", name)));
+///     doc.push(literal(format!("--{}", name)));
 /// }
 ///
 /// fn write_long_name_2(doc: &mut Semantic, name: &str) {
-///     doc.text([literal("--"), literal(name)]);
+///     doc.push([literal("--"), literal(name)]);
 /// }
 /// ```
 pub struct Styled<T>(Style, T);
@@ -337,7 +406,7 @@ impl SemWrite for Styled<char> {
 /// ```rust
 /// # use roff::semantic::*;
 /// let mut doc = Semantic::default();
-/// doc.text([text("Pass "), literal("--help"), text(" to print the usage")]);
+/// doc.push([text("Pass "), literal("--help"), text(" to print the usage")]);
 /// let doc = doc.render_to_markdown();
 /// let expected = "Pass <tt><b>\\-\\-help</b></tt> to print the usage";
 ///
@@ -355,7 +424,7 @@ pub fn literal<T>(payload: T) -> Styled<T> {
 /// ```rust
 /// # use roff::semantic::*;
 /// let mut doc = Semantic::default();
-/// doc.text([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
+/// doc.push([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
 /// let expected = "To save output to file: <tt><b>\\-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
 ///
@@ -372,7 +441,7 @@ pub fn metavar<T>(payload: T) -> Styled<T> {
 /// ```rust
 /// # use roff::semantic::*;
 /// let mut doc = Semantic::default();
-/// doc.text([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
+/// doc.push([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
 /// let expected = "To save output to file: <tt><b>\\-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
 ///
@@ -423,13 +492,16 @@ where
     }
 }
 
+/// Make it so new text is inserted at a new line
 fn at_newline(res: &mut String) {
-    if !(res.is_empty() || res.ends_with("\n")) {
+    if !(res.is_empty() || res.ends_with('\n')) {
         res.push('\n');
     }
 }
+
+/// Make it so new text is separated by an empty line
 fn blank_line(res: &mut String) {
-    if !res.is_empty() {
+    if !(res.is_empty() || res.ends_with("\n\n")) {
         at_newline(res);
         res.push('\n');
     }
@@ -437,38 +509,39 @@ fn blank_line(res: &mut String) {
 
 impl Semantic {
     /// Render semantic document into markdown
+    // not quite markdown but encasing things in html block items makes it so
+    // rustdoc avoids replacing -- to unicode dash - a nice side effect to have
+    #[must_use]
+    #[allow(clippy::too_many_lines)] // not that many
     pub fn render_to_markdown(&self) -> String {
         let mut res = String::new();
 
-        // [1]: Items inside definition lists should be encased in <dd> instead of <li>
-        // Some reason rustdoc replaces -- with unicode "–" unless it is inside definition lists.
-        // because of this code escapes dashes with '\' in "mono" and "literal" fragments unless
-        // inside definition lists
-        let mut definition_list = false;
+        // Items inside definition lists are encased in <dd> instead of <li>
+        let mut is_dlist = false;
         for (meta, payload) in &self.0 {
             match meta {
                 Sem::BlockStart(block) => match block {
                     LogicalBlock::DefinitionList => {
                         blank_line(&mut res);
-                        definition_list = true;
+                        is_dlist = true;
                         res.push_str("<dl>");
                     }
                     LogicalBlock::NumberedList => {
                         blank_line(&mut res);
-                        definition_list = false;
-                        res.push_str("<ol>")
+                        is_dlist = false;
+                        res.push_str("<ol>");
                     }
                     LogicalBlock::UnnumberedList => {
                         blank_line(&mut res);
-                        definition_list = false;
+                        is_dlist = false;
                         res.push_str("<ul>");
                     }
                     LogicalBlock::ListItem => {
                         at_newline(&mut res);
-                        if definition_list {
-                            res.push_str("<dd>")
+                        if is_dlist {
+                            res.push_str("<dd>");
                         } else {
-                            res.push_str("<li>")
+                            res.push_str("<li>");
                         }
                     }
                     LogicalBlock::ListKey => {
@@ -477,6 +550,7 @@ impl Semantic {
                     }
                     LogicalBlock::Paragraph => {
                         blank_line(&mut res);
+                        res.push_str("<p>");
                     }
                     LogicalBlock::Section => {
                         blank_line(&mut res);
@@ -492,29 +566,20 @@ impl Semantic {
                     LogicalBlock::UnnumberedList => res.push_str("</ul>"),
                     LogicalBlock::NumberedList => res.push_str("</ol>"),
                     LogicalBlock::ListItem => {
-                        if definition_list {
-                            res.push_str("</dd>")
+                        if is_dlist {
+                            res.push_str("</dd>");
                         } else {
-                            res.push_str("</li>")
+                            res.push_str("</li>");
                         }
                     }
                     LogicalBlock::ListKey => res.push_str("</dt>"),
-                    LogicalBlock::Paragraph | LogicalBlock::Section | LogicalBlock::Subsection => {}
+                    LogicalBlock::Paragraph => res.push_str("</p>"),
+                    LogicalBlock::Section | LogicalBlock::Subsection => {}
                 },
                 Sem::Style(style) => match style {
                     Style::Literal => {
                         res.push_str("<tt><b>");
-                        // [1]
-                        if definition_list {
-                            res.push_str(payload);
-                        } else {
-                            for c in payload.chars() {
-                                if c == '-' {
-                                    res.push('\\');
-                                }
-                                res.push(c);
-                            }
-                        }
+                        res.push_str(payload);
                         res.push_str("</b></tt>");
                     }
                     Style::Metavar => {
@@ -524,17 +589,7 @@ impl Semantic {
                     }
                     Style::Mono => {
                         res.push_str("<tt>");
-                        // [1]
-                        if definition_list {
-                            res.push_str(payload);
-                        } else {
-                            for c in payload.chars() {
-                                if c == '-' {
-                                    res.push('\\');
-                                }
-                                res.push(c);
-                            }
-                        }
+                        res.push_str(payload);
                         res.push_str("</tt>");
                     }
                     Style::Text => {
@@ -554,6 +609,7 @@ impl Semantic {
     /// Render semantic document into a manpage
     ///
     /// You need to provide a [`Manpage`] to be used as a header
+    #[must_use]
     pub fn render_to_manpage(&self, mut manpage: Manpage) -> String {
         // sections and subsections are implemented with .SH and .SS
         // control messages and it is easier to provide them right away
@@ -562,16 +618,13 @@ impl Semantic {
         for (meta, payload) in &self.0 {
             match meta {
                 Sem::BlockStart(b) => match b {
-                    LogicalBlock::Paragraph => {}
-                    LogicalBlock::Section => {
+                    LogicalBlock::Section | LogicalBlock::Subsection => {
                         capture.1 = true;
                     }
-                    LogicalBlock::Subsection => {
-                        capture.1 = true;
-                    }
-                    LogicalBlock::UnnumberedList => todo!(),
-                    LogicalBlock::NumberedList => todo!(),
-                    LogicalBlock::DefinitionList => {}
+                    LogicalBlock::UnnumberedList
+                    | LogicalBlock::NumberedList
+                    | LogicalBlock::Paragraph
+                    | LogicalBlock::DefinitionList => {}
                     LogicalBlock::ListItem => {
                         manpage.raw().strip_newlines(true);
                     }
