@@ -1,4 +1,4 @@
-use ::roff::write_updated;
+use roff::{write_updated, Doc, Section};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
@@ -8,28 +8,40 @@ fn file(name: &str) -> PathBuf {
         .join(name)
 }
 
-#[test]
-fn semantic_to_markdown_and_man() {
-    use ::roff::man::Manpage;
-    use ::roff::semantic::*;
-    let mut doc = Semantic::default();
+fn doc() -> Doc {
+    use roff::*;
+    let mut doc = Doc::default();
     doc.section("Description");
-    doc.paragraph([text("Pass "), literal("--help"), text(" for info.")]);
+    doc.paragraph(&[text("Pass "), literal("--help"), text(" for info.")]);
     doc.section("Options");
-    doc.dlist([write_with(|doc| {
+    doc.dlist(|doc: &mut Doc| {
         doc.definition(
-            [literal("-v"), mono(" "), literal("--verbose")],
+            &[literal("-v"), mono(" "), literal("--verbose")],
             text("Use verbose output"),
         )
         .definition(literal("--help"), text("Print usage"))
         .definition(literal("--version"), text("Print version"));
-    })]);
-    doc.paragraph(text("Exit code:\n 0: if OK\n 1: if not OK"));
+    });
+
+    doc.pre(text("Exit code:\n 0: if OK\n 1: if not OK"));
+
+    doc.paragraph(&[
+        text("A few lines\n"),
+        text("of text\n"),
+        text(".can  be   here"),
+    ]);
+
+    doc
+}
+
+#[test]
+fn semantic_to_markdown() {
+    let doc = doc();
 
     let expected = "\
 # Description
 
-Pass <tt><b>\\-\\-help</b></tt> for info.
+<p>Pass <tt><b>--help</b></tt> for info.</p>
 
 # Options
 
@@ -41,68 +53,27 @@ Pass <tt><b>\\-\\-help</b></tt> for info.
 <dt><tt><b>--version</b></tt></dt>
 <dd>Print version</dd></dl>
 
-Exit code:
+<pre>Exit code:
  0: if OK
- 1: if not OK";
-    assert_eq!(doc.render_to_markdown(), expected);
+ 1: if not OK</pre>
 
-    let man = Manpage::new("SIMPLE", Section::General, &[]);
-    let x = doc.render_to_manpage(man);
+<p>A few lines
+of text
+ can be here</p>";
+
+    assert_eq!(doc.render_to_markdown(), expected);
+}
+
+#[test]
+fn semantic_to_manpage() {
+    let doc = doc().render_to_manpage("SIMPLE", Section::General, &[]);
     let sample = file("sample.1");
-    let changed = write_updated(&sample, x.as_bytes()).unwrap();
+    let changed = write_updated(&sample, doc.as_bytes()).unwrap();
     assert!(
         !changed,
         "Changes are detected to generated {:?} file",
         sample
     );
-}
-
-#[test]
-fn rendering_to_file_works() {
-    use ::roff::man::{Manpage, Section, Style::*};
-    let page = Manpage::new("CORRUPT", Section::General, &[])
-        .section("NAME")
-        .paragraph([(Text, "corrupt - modify files by randomly changing bits")])
-        .section("SYNOPSIS")
-        .paragraph([
-            (Literal, "corrupt"),
-            (Text, " ["),
-            (Literal, "-n"),
-            (Text, " "),
-            (Metavar, "BITS"),
-            (Text, "] ["),
-            (Literal, "--bits"),
-            (Text, " "),
-            (Metavar, "BITS"),
-            (Text, "] "),
-            (Metavar, "file"),
-            (Text, "..."),
-        ])
-        .section("DESCRIPTION")
-        .paragraph([
-            (Literal, "corrupt"),
-            (Text, " modifies files by toggling a randomly chosen bit."),
-        ])
-        .section("OPTIONS")
-        .label(
-            None,
-            [
-                (Literal, "-n"),
-                (Text, ", "),
-                (Literal, "--bits"),
-                (Text, "="),
-                (Metavar, "BITS"),
-            ],
-        )
-        .paragraph([
-            (Text, "Set the number of bits to modify. "),
-            (Text, "Default is one bit."),
-        ])
-        .render();
-
-    let demo = file("demo.troff");
-    let changed = write_updated(&demo, page.as_bytes()).unwrap();
-    assert!(!changed, "Changes detected to generated {:?} file", demo);
 }
 
 #[cfg(unix)]

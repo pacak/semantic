@@ -1,4 +1,4 @@
-//! Low level interface for Roff composer
+//! Roff document composer
 //!
 //! [ROFF] is a family of Unix text-formatting languages, implemented
 //! by the `nroff`, `troff`, and `groff` programs, among others. See
@@ -15,6 +15,14 @@
 //! assert_eq!(doc, "\\fRhello, world\\fP");
 //! ```
 //!
+//! For purposes of generating manpages you can use one of few available macro packages:
+//! - [man(7)] — legacy formatting language for manual pages
+//! - [mdoc(7)] - semantic markup language for formatting manual pages
+//!
+//! With more detailed information available <http://mandoc.bsd.lv>
+//!
+//! [man(7)]: http://mandoc.bsd.lv/man/man.7.html
+//! [mdoc(7)]: http://mandoc.bsd.lv/man/mdoc.7.html
 //! [groff(7)]: https://manpages.debian.org/bullseye/groff/groff.7.en.html
 //! [ROFF]: https://en.wikipedia.org/wiki/Roff_(software)
 
@@ -298,7 +306,7 @@ impl Add<&Roff> for Roff {
 }
 
 impl<'a> Extend<&'a Roff> for Roff {
-    fn extend<T: IntoIterator<Item = &'a Roff>>(&mut self, iter: T) {
+    fn extend<I: IntoIterator<Item = &'a Roff>>(&mut self, iter: I) {
         for i in iter {
             *self += i;
         }
