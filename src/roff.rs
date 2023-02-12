@@ -175,10 +175,24 @@ impl Roff {
         self.payload.push_str(Escape::UnescapedAtNewline, ".");
         self.payload.push_str(Escape::Unescaped, name);
         for arg in args {
+            // empty macro argument can be specified as "", mostly useful for TH macro
+            // which takes several arguments positionally
+            let mut s = arg.as_ref();
+            if s.is_empty() {
+                s = "\"\"";
+            }
             self.payload
                 .push_str(Escape::Unescaped, " ")
-                .push_str(Escape::Spaces, arg.as_ref());
+                .push_str(Escape::Spaces, s);
         }
+        self.payload.push_str(Escape::UnescapedAtNewline, "");
+        self
+    }
+
+    /// A variant of control that takes no parameters
+    pub fn control0(&mut self, name: &str) -> &mut Self {
+        self.payload.push_str(Escape::UnescapedAtNewline, ".");
+        self.payload.push_str(Escape::Unescaped, name);
         self.payload.push_str(Escape::UnescapedAtNewline, "");
         self
     }
@@ -445,7 +459,7 @@ mod test {
     fn multiple_controls() {
         let text = Roff::default()
             .control("br", None::<&str>)
-            .control("br", None::<&str>)
+            .control0("br")
             .control("br", None::<&str>)
             .render(NO_AP);
         assert_eq!(".br\n.br\n.br\n", text);

@@ -2,14 +2,12 @@
 
 use crate::{
     monoid::FreeMonoid,
-    roff::Apostrophes,
+    roff::{Apostrophes, Font},
     shared::{Section, Style},
 };
 use std::ops::{Add, AddAssign};
 
-/// Semantic document that can be rendered
-///
-/// See [`module`](crate::semantic) documentation for more info
+/// Semantic document that can be rendered as markdown or man page
 #[derive(Debug, Clone, Default)]
 pub struct Doc(FreeMonoid<Sem>);
 
@@ -39,8 +37,8 @@ impl Doc {
     /// Insert document section name
     ///
     /// ```rust
-    /// # use roff::*;
-    /// let mut doc = Semantic::new();
+    /// # use ::roff::*;
+    /// let mut doc = Doc::default();
     /// doc.section("Hello")
     ///     .paragraph("Some plain text.");
     /// ```
@@ -53,8 +51,8 @@ impl Doc {
     /// Insert document subsection name
     ///
     /// ```rust
-    /// # use roff::*;
-    /// let mut doc = Doc::new();
+    /// # use ::roff::*;
+    /// let mut doc = Doc::default();
     /// doc.subsection("Hello")
     ///     .paragraph("Some plain text.");
     /// ```
@@ -68,7 +66,7 @@ impl Doc {
     /// Contents of a paragraph can be
     ///
     /// ```rust
-    /// # use roff::*;
+    /// # use ::roff::*;
     /// ```
     pub fn paragraph<S>(&mut self, text: S) -> &mut Self
     where
@@ -121,7 +119,7 @@ impl Doc {
     /// Insert a list item
     ///
     /// Contents should be text level fragments, for [`definition
-    /// lists`](Semantic::dlist) this will be used in the term body field.
+    /// lists`](Doc::dlist) this will be used in the term body field.
     pub fn item<S>(&mut self, item: S) -> &mut Self
     where
         S: Write,
@@ -162,7 +160,7 @@ impl Doc {
         self
     }
 
-    /// Monospaced text semantic fragment
+    /// Monospaced text fragment
     ///
     /// Can be useful to insert fixed text fragments for formatting or semantic emphasis
     pub fn mono<S>(&mut self, payload: S) -> &mut Self
@@ -172,18 +170,18 @@ impl Doc {
         self.push(mono(payload.as_ref()))
     }
 
-    /// Literal semantic fragment
+    /// Literal text fragment
     ///
     /// This fragment represents something user needs to type literally, usually used for command names
     /// or option flag names:
     ///
     ///
     /// ```rust
-    /// # use roff::semantic::*;
-    /// let mut doc = Semantic::default();
+    /// # use ::roff::*;
+    /// let mut doc = Doc::default();
     /// doc.text("Pass ").literal("--help").text(" to print the usage");
     /// let doc = doc.render_to_markdown();
-    /// let expected = "Pass <tt><b>\\-\\-help</b></tt> to print the usage";
+    /// let expected = "Pass <tt><b>--help</b></tt> to print the usage";
     ///
     /// assert_eq!(doc, expected);
     /// ```
@@ -194,17 +192,17 @@ impl Doc {
         self.push(literal(payload.as_ref()))
     }
 
-    /// Metavariable semantic fragment
+    /// Metavariable fragment
     ///
     /// This fragment represents something user needs to replace with a different input, usually used for
     /// argument file name placeholders:
     ///
     /// ```rust
-    /// # use roff::semantic::*;
-    /// let mut doc = Semantic::default();
+    /// # use ::roff::*;
+    /// let mut doc = Doc::default();
     /// doc.text("To save output to file: ").literal("-o").mono(" ").metavar("FILE");
     /// let doc = doc.render_to_markdown();
-    /// let expected = "To save output to file: <tt><b>\\-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+    /// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
     ///
     /// assert_eq!(doc, expected);
     /// ```
@@ -220,11 +218,11 @@ impl Doc {
     /// This fragment represents usual text, newlines are going to be ignored
     ///
     /// ```rust
-    /// # use roff::semantic::*;
-    /// let mut doc = Semantic::default();
+    /// # use ::roff::*;
+    /// let mut doc = Doc::default();
     /// doc.text("To save output to file: ").literal("-o").mono(" ").metavar("FILE");
     /// let doc = doc.render_to_markdown();
-    /// let expected = "To save output to file: <tt><b>\\-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+    /// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
     ///
     /// assert_eq!(doc, expected);
     /// ```
@@ -240,11 +238,11 @@ impl Doc {
     /// This fragment is used to highlight some text
     ///
     /// ```rust
-    /// # use roff::semantic::*;
-    /// let mut doc = Semantic::default();
+    /// # use ::roff::*;
+    /// let mut doc = Doc::default();
     /// doc.text("Please ").important("do not").text(" the cat!");
     /// let doc = doc.render_to_markdown();
-    /// let expected = "To save output to file: <tt><b>\\-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+    /// let expected = "Please <b>do not</b> the cat!";
     ///
     /// assert_eq!(doc, expected);
     /// ```
@@ -256,35 +254,37 @@ impl Doc {
     }
 }
 
-/// A semantic document fragment that can be appended to [`Semantic`] document
+/*
+/// A semantic document fragment that can be appended to [`Doc`] document
 ///
 /// Semantic documents are designed with composing them from arbitrary typed chunks, not just
 /// styled text. For example if document talks about command line option it should be possible to
 /// insert this option by referring to a parser rather than by a string so documentation becomes
 /// checked with a compiler
-///
-///
+*/
 
-/// Helper method to combine several semantic fragments in a single write operation
+/// A trait for writing an object containing text and semantic markup into a buffer
 ///
-/// If you are trying to create a paragraph of text from several fragments of different types you
-/// can do something like this:
+/// This trait is defined for several simple types as well as several collections - for as long as
+/// it is also implemented for items inside the collections
 ///
 /// ```rust
-/// # use roff::semantic::*;
-/// let mut doc = Semantic::default();
-/// doc.paragraph(write_with(|doc| {
-///     doc.push([literal('-'), literal('h')]);
-///     doc.push([text(" and "), literal("--help"), text(" prints usage")]);
-/// }));
+/// # use ::roff::*;
+/// let mut doc = Doc::default();
+/// // most methods take a single semantic object which you can create either using
+/// // from other objects either using a closure or a slice as shown here
+/// doc.paragraph(|doc: &mut Doc| { // <- closure, note the type signature
+///     // slices are a bit easier to use than closures but values inside must have the same type
+///     doc.push(&[StyledChar(Style::Literal, '-'), StyledChar(Style::Literal, 'h')]);
+///     doc.push(&[text(" and "), literal("--help"), text(" prints usage")]);
+/// });
 /// let doc = doc.render_to_markdown();
 ///
-/// let expected = "<tt><b>\\-h</b></tt> and <tt><b>\\-\\-help</b></tt> prints usage";
+/// let expected = "<p><tt><b>-h</b></tt> and <tt><b>--help</b></tt> prints usage</p>";
 /// assert_eq!(doc, expected);
 /// ```
-///
 pub trait Write {
-    /// Append a fragment of semantic document
+    /// Append a fragment to a semantic document
     fn write(&self, to: &mut Doc);
 }
 
@@ -374,26 +374,37 @@ where
     }
 }
 #[derive(Debug, Copy, Clone)]
+/// A struct used to append a single character with attached style
 ///
+/// ```rust
+/// # use ::roff::*;
+/// let mut doc = Doc::default();
+/// doc.push(&[
+///     StyledChar(Style::Literal, '-'),
+///     StyledChar(Style::Literal, 'h'),
+/// ]);
+/// assert_eq!(doc.render_to_markdown(), "<tt><b>-h</b></tt>");
+/// ```
 pub struct StyledChar(pub Style, pub char);
 
 impl Write for StyledChar {
     fn write(&self, to: &mut Doc) {
+        to.0.squash = true;
         to.0.push(Sem::Style(self.0), self.1);
     }
 }
 
-/// Literal semantic fragment
+/// <tt><b>Literal</b></tt> text fragment
 ///
 /// This fragment represents something user needs to type literally, usually used for command names
 /// or option flag names:
 ///
 /// ```rust
-/// # use roff::semantic::*;
-/// let mut doc = Semantic::default();
-/// doc.push([text("Pass "), literal("--help"), text(" to print the usage")]);
+/// # use ::roff::*;
+/// let mut doc = Doc::default();
+/// doc.push(&[text("Pass "), literal("--help"), text(" to print the usage")]);
 /// let doc = doc.render_to_markdown();
-/// let expected = "Pass <tt><b>\\-\\-help</b></tt> to print the usage";
+/// let expected = "Pass <tt><b>--help</b></tt> to print the usage";
 ///
 /// assert_eq!(doc, expected);
 /// ```
@@ -404,17 +415,17 @@ where
     (Style::Literal, payload)
 }
 
-/// Metavariable semantic fragment
+/// <tt><i>Metavariable</i></tt> text fragment
 ///
 /// This fragment represents something user needs to replace with a different input, usually used for
 /// argument file name placeholders:
 ///
 /// ```rust
-/// # use roff::semantic::*;
-/// let mut doc = Semantic::default();
-/// doc.push([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
+/// # use ::roff::*;
+/// let mut doc = Doc::default();
+/// doc.push(&[text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
-/// let expected = "To save output to file: <tt><b>\\-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+/// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
 ///
 /// assert_eq!(doc, expected);
 /// ```
@@ -425,16 +436,16 @@ where
     (Style::Metavar, payload)
 }
 
-/// Plain text semantic fragment
+/// Plain text fragment
 ///
 /// This fragment should be used for any boring plaintext fragments:
 ///
 /// ```rust
-/// # use roff::semantic::*;
-/// let mut doc = Semantic::default();
-/// doc.push([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
+/// # use ::roff::*;
+/// let mut doc = Doc::default();
+/// doc.push(&[text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
-/// let expected = "To save output to file: <tt><b>\\-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+/// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
 ///
 /// assert_eq!(doc, expected);
 /// ```
@@ -445,7 +456,7 @@ where
     (Style::Text, payload)
 }
 
-/// Monospaced text semantic fragment
+/// <tt>Monospaced</tt> text fragment
 ///
 /// Can be useful to insert fixed text fragments for formatting or semantic emphasis
 pub fn mono<T>(payload: T) -> (Style, T)
@@ -455,7 +466,7 @@ where
     (Style::Mono, payload)
 }
 
-/// Important text semantic fragment
+/// <b>Important</b> text fragment
 ///
 /// Can be useful for any text that should attract users's attention
 pub fn important<T>(payload: T) -> (Style, T)
@@ -602,22 +613,39 @@ impl Doc {
 
     /// Render semantic document into a manpage
     ///
-    /// You need to provide a [`Manpage`] to be used as a header
+    /// Create a new manpage with given `title` in a given `section`
+    ///
+    /// `extra` can contain up to 3 items to populate header and footer:
+    ///
+    /// ```text
+    /// [footer-middle [footer-inside [header-middle]]]
+    /// ```
+    /// where usual meanings are
+    /// - *footer-middle* - free form date when the application was last updated
+    /// - *footer-inside* - if a program is a part of some project or a suite - it goes here
+    /// - *header-middle* - fancier, human readlable application name
+    ///
+    /// `extra` values should not be empty, but it's OK to have less than 3 items
     #[must_use]
     pub fn render_to_manpage(&self, title: &str, section: Section, extra: &[&str]) -> String {
         let mut roff = crate::roff::Roff::default();
 
         roff.control(
             "TH",
-            [title.as_ref(), section.as_str()]
-                .iter()
-                .chain(extra.iter().take(3)),
+            [title, section.as_str()].iter().chain(extra.iter().take(3)),
         );
 
         // sections and subsections are implemented with .SH and .SS
         // control messages and it is easier to provide them right away
         // We also strip styling from them and change sections to all caps
         let mut capture = (String::new(), false);
+        #[derive(Clone, Copy)]
+        enum ListKind {
+            Def,
+            Ol(usize),
+            Ul,
+        }
+        let mut kind = ListKind::Def;
         for (meta, payload) in &self.0 {
             match meta {
                 Sem::BlockStart(b) => match b {
@@ -626,53 +654,60 @@ impl Doc {
                     }
                     LogicalBlock::Pre => {
                         // .nf - turn off fill mode
-                        // .eo - turn off escape processing
-                        // .fi - restore fill mode
-                        // .ec - restore escape processing
-
-                        roff.control("nf", None::<&str>) // .fi
-                            // .control("eo", None::<&str>) // .ec
-                            .strip_newlines(false);
+                        roff.control0("PP").control0("nf").strip_newlines(false);
                     }
                     LogicalBlock::Paragraph => {
-                        roff.control("PP", None::<&str>);
+                        roff.control0("PP");
                     }
-                    LogicalBlock::UnnumberedList
-                    | LogicalBlock::NumberedList
-                    | LogicalBlock::DefinitionList => {}
-                    LogicalBlock::ListItem => {
-                        roff.strip_newlines(true);
+                    LogicalBlock::UnnumberedList => {
+                        kind = ListKind::Ul;
                     }
+                    LogicalBlock::NumberedList => {
+                        kind = ListKind::Ol(1);
+                    }
+                    LogicalBlock::DefinitionList => {
+                        kind = ListKind::Def;
+                    }
+                    LogicalBlock::ListItem => match &mut kind {
+                        ListKind::Def => {
+                            //roff.control0("IP");
+                        }
+                        ListKind::Ol(ix) => {
+                            roff.text([(Font::Roman, format!("{}. ", ix))]);
+                            *ix += 1;
+                        }
+                        ListKind::Ul => {
+                            roff.text([(Font::Roman, "* ")]);
+                        }
+                    },
                     LogicalBlock::ListKey => {
-                        roff.control("TP", None::<&str>).strip_newlines(true);
+                        roff.control0("TP").strip_newlines(true);
                     }
                 },
                 Sem::BlockEnd(b) => match b {
-                    LogicalBlock::Paragraph => {
-                        //                        manpage.raw().strip_newlines(false);
-                    }
+                    LogicalBlock::Paragraph => {}
                     LogicalBlock::Pre => {
-                        roff
-                            // .control("ec", None::<&str>) // .fi
-                            .control("fi", None::<&str>) // .ec
-                            .strip_newlines(true);
+                        // .fi - restore fill mode
+                        roff.control0("fi").strip_newlines(true);
                     }
 
                     LogicalBlock::Section => {
                         capture.1 = false;
-                        roff.control("SH", &[&capture.0.to_uppercase()]);
+                        roff.control("SH", [capture.0.to_uppercase()]);
                         capture.0.clear();
                     }
                     LogicalBlock::Subsection => {
                         capture.1 = false;
-                        roff.control("SS", &[&capture.0]);
+                        roff.control("SS", [&capture.0]);
                         capture.0.clear();
                     }
-                    LogicalBlock::UnnumberedList => todo!(),
-                    LogicalBlock::NumberedList => todo!(),
+                    LogicalBlock::UnnumberedList | LogicalBlock::NumberedList => {
+
+                        //roff.control0("RE");
+                    }
                     LogicalBlock::DefinitionList => {}
                     LogicalBlock::ListItem => {
-                        roff.control("PP", None::<&str>).strip_newlines(false);
+                        roff.control0("PP").strip_newlines(false);
                     }
                     LogicalBlock::ListKey => {
                         roff.roff_linebreak().strip_newlines(false);

@@ -1,4 +1,4 @@
-use roff::{write_updated, Doc, Section};
+use ::roff::*;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
@@ -9,7 +9,6 @@ fn file(name: &str) -> PathBuf {
 }
 
 fn doc() -> Doc {
-    use roff::*;
     let mut doc = Doc::default();
     doc.section("Description");
     doc.paragraph(&[text("Pass "), literal("--help"), text(" for info.")]);
@@ -21,6 +20,20 @@ fn doc() -> Doc {
         )
         .definition(literal("--help"), text("Print usage"))
         .definition(literal("--version"), text("Print version"));
+    });
+
+    doc.ulist(|doc: &mut Doc| {
+        doc.item(text("banana"));
+        doc.item(text(".second banana"));
+        doc.item(text("apple"));
+        doc.item(text("durian"));
+    });
+
+    doc.nlist(|doc: &mut Doc| {
+        doc.item(text("banana"));
+        doc.item(text(".second banana"));
+        doc.item(text("apple"));
+        doc.item(text("durian"));
     });
 
     doc.pre(text("Exit code:\n 0: if OK\n 1: if not OK"));
@@ -53,13 +66,25 @@ fn semantic_to_markdown() {
 <dt><tt><b>--version</b></tt></dt>
 <dd>Print version</dd></dl>
 
+<ul>
+<li>banana</li>
+<li>.second banana</li>
+<li>apple</li>
+<li>durian</li></ul>
+
+<ol>
+<li>banana</li>
+<li>.second banana</li>
+<li>apple</li>
+<li>durian</li></ol>
+
 <pre>Exit code:
  0: if OK
  1: if not OK</pre>
 
 <p>A few lines
 of text
- can be here</p>";
+.can  be   here</p>";
 
     assert_eq!(doc.render_to_markdown(), expected);
 }

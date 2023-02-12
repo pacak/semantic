@@ -12,23 +12,17 @@
 //! - ordered, unordered and definitions lists, with items being nested blocks
 //! - paragraphs of text
 //! ```
-//! # use roff::*;
+//! # use ::roff::*;
 //! let mut doc = Doc::default();
 //!
 //! doc.section("Usage")
-//!     .paragraph([text("Program takes "), literal("--help"), text(" flag")])
-//!     .ulist(|doc: &mut | {
+//!     .paragraph(&[text("Program takes "), literal("--help"), text(" flag")])
+//!     .ulist(|doc: &mut Doc| {
 //!         doc.item(text("program is written in Rust"))
 //!             .item(text("program should not crash"))
-//!             .item([text("pass "), literal("--version"), text(" to see the version")]);
+//!             .item(&[text("pass "), literal("--version"), text(" to see the version")]);
 //!     });
 //! ```
-//!
-//! You can append any type that implements trait [`SemWrite`] using [`push`](Semantic::push).
-//! `SemWrite` is implemented on any type that implements [`IntoIterator`] of other `SemWrite` items.
-//!
-//! You can also apply style to strings or characters using using [`literal`], [`metavar`],
-//! [`mono`], [`text`] and [`important`].
 //!
 //! <details>
 //! <summary>Generated structure</summary>
@@ -91,17 +85,11 @@
 //! <li>pass <tt><b>--version</b></tt> to see the version</li>
 //! </ul>
 //! </details>
-//!
-//! <pre>
-//! hello <b>asdf</b> meta
-//! hello asdf <b><i>meta</i></b>
-//! hello <i>asdf</i> meta
-//! hello <tt>asdf</tt> <tt><b>meta</b></tt>
-//! </pre>
 
 mod escape;
 mod monoid;
-mod roff;
+#[doc(hidden)]
+pub mod roff;
 mod semantic;
 mod shared;
 
@@ -121,7 +109,7 @@ use std::path::Path;
 /// #[test]
 /// fn update_documentation() {
 /// # */
-/// # use roff::write_updated;
+/// # use ::roff::write_updated;
 ///     // create some document
 ///     let doc = "hello world";
 ///
