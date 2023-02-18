@@ -202,7 +202,7 @@ impl Doc {
     /// let mut doc = Doc::default();
     /// doc.text("To save output to file: ").literal("-o").mono(" ").metavar("FILE");
     /// let doc = doc.render_to_markdown();
-    /// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+    /// let expected = "To save output to file: <tt><b>-o</b> <i>FILE</i></tt>";
     ///
     /// assert_eq!(doc, expected);
     /// ```
@@ -222,7 +222,7 @@ impl Doc {
     /// let mut doc = Doc::default();
     /// doc.text("To save output to file: ").literal("-o").mono(" ").metavar("FILE");
     /// let doc = doc.render_to_markdown();
-    /// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+    /// let expected = "To save output to file: <tt><b>-o</b> <i>FILE</i></tt>";
     ///
     /// assert_eq!(doc, expected);
     /// ```
@@ -425,7 +425,7 @@ where
 /// let mut doc = Doc::default();
 /// doc.push(&[text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
-/// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+/// let expected = "To save output to file: <tt><b>-o</b> <i>FILE</i></tt>";
 ///
 /// assert_eq!(doc, expected);
 /// ```
@@ -445,7 +445,7 @@ where
 /// let mut doc = Doc::default();
 /// doc.push(&[text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
-/// let expected = "To save output to file: <tt><b>-o</b></tt><tt> </tt><tt><i>FILE</i></tt>";
+/// let expected = "To save output to file: <tt><b>-o</b> <i>FILE</i></tt>";
 ///
 /// assert_eq!(doc, expected);
 /// ```
@@ -507,6 +507,44 @@ fn blank_line(res: &mut String) {
     }
 }
 
+#[derive(Copy, Clone, Default)]
+struct Styles {
+    mono: bool,
+    bold: bool,
+    italic: bool,
+}
+impl From<Style> for Styles {
+    fn from(f: Style) -> Self {
+        match f {
+            Style::Literal => Styles {
+                bold: true,
+                mono: true,
+                italic: false,
+            },
+            Style::Metavar => Styles {
+                bold: false,
+                mono: true,
+                italic: true,
+            },
+            Style::Mono => Styles {
+                bold: false,
+                mono: true,
+                italic: false,
+            },
+            Style::Text => Styles {
+                bold: false,
+                mono: false,
+                italic: false,
+            },
+            Style::Important => Styles {
+                bold: true,
+                mono: false,
+                italic: false,
+            },
+        }
+    }
+}
+
 impl Doc {
     /// Render semantic document into markdown
     // not quite markdown but encasing things in html block items makes it so
@@ -515,6 +553,29 @@ impl Doc {
     #[allow(clippy::too_many_lines)] // not that many
     pub fn render_to_markdown(&self) -> String {
         let mut res = String::new();
+        let mut cur_style = Styles::default();
+
+        fn change_style(res: &mut String, cur: &mut Styles, new: Styles) {
+            if cur.italic && !new.italic {
+                res.push_str("</i>")
+            }
+            if cur.bold && !new.bold {
+                res.push_str("</b>")
+            }
+            if cur.mono && !new.mono {
+                res.push_str("</tt>")
+            }
+            if !cur.mono && new.mono {
+                res.push_str("<tt>")
+            }
+            if !cur.bold && new.bold {
+                res.push_str("<b>")
+            }
+            if !cur.italic && new.italic {
+                res.push_str("<i>")
+            }
+            *cur = new;
+        }
 
         // Items inside definition lists are encased in <dd> instead of <li>
         let mut is_dlist = false;
@@ -565,49 +626,32 @@ impl Doc {
                         res.push_str("## ");
                     }
                 },
-                Sem::BlockEnd(block) => match block {
-                    LogicalBlock::DefinitionList => res.push_str("</dl>"),
-                    LogicalBlock::UnnumberedList => res.push_str("</ul>"),
-                    LogicalBlock::NumberedList => res.push_str("</ol>"),
-                    LogicalBlock::ListItem => {
-                        if is_dlist {
-                            res.push_str("</dd>");
-                        } else {
-                            res.push_str("</li>");
+                Sem::BlockEnd(block) => {
+                    change_style(&mut res, &mut cur_style, Styles::default());
+                    match block {
+                        LogicalBlock::DefinitionList => res.push_str("</dl>"),
+                        LogicalBlock::UnnumberedList => res.push_str("</ul>"),
+                        LogicalBlock::NumberedList => res.push_str("</ol>"),
+                        LogicalBlock::ListItem => {
+                            if is_dlist {
+                                res.push_str("</dd>");
+                            } else {
+                                res.push_str("</li>");
+                            }
                         }
+                        LogicalBlock::ListKey => res.push_str("</dt>"),
+                        LogicalBlock::Paragraph => res.push_str("</p>"),
+                        LogicalBlock::Pre => res.push_str("</pre>"),
+                        LogicalBlock::Section | LogicalBlock::Subsection => {}
                     }
-                    LogicalBlock::ListKey => res.push_str("</dt>"),
-                    LogicalBlock::Paragraph => res.push_str("</p>"),
-                    LogicalBlock::Pre => res.push_str("</pre>"),
-                    LogicalBlock::Section | LogicalBlock::Subsection => {}
-                },
-                Sem::Style(style) => match style {
-                    Style::Literal => {
-                        res.push_str("<tt><b>");
-                        res.push_str(payload);
-                        res.push_str("</b></tt>");
-                    }
-                    Style::Metavar => {
-                        res.push_str("<tt><i>");
-                        res.push_str(payload);
-                        res.push_str("</i></tt>");
-                    }
-                    Style::Mono => {
-                        res.push_str("<tt>");
-                        res.push_str(payload);
-                        res.push_str("</tt>");
-                    }
-                    Style::Text => {
-                        res.push_str(payload);
-                    }
-                    Style::Important => {
-                        res.push_str("<b>");
-                        res.push_str(payload);
-                        res.push_str("</b>");
-                    }
-                },
+                }
+                Sem::Style(style) => {
+                    change_style(&mut res, &mut cur_style, Styles::from(*style));
+                    res.push_str(payload);
+                }
             }
         }
+        change_style(&mut res, &mut cur_style, Styles::default());
         res
     }
 

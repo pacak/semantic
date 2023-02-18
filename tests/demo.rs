@@ -59,7 +59,7 @@ fn semantic_to_markdown() {
 # Options
 
 <dl>
-<dt><tt><b>-v</b></tt><tt> </tt><tt><b>--verbose</b></tt></dt>
+<dt><tt><b>-v</b> <b>--verbose</b></tt></dt>
 <dd>Use verbose output</dd>
 <dt><tt><b>--help</b></tt></dt>
 <dd>Print usage</dd>
