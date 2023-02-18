@@ -642,7 +642,9 @@ impl Doc {
                         LogicalBlock::ListKey => res.push_str("</dt>"),
                         LogicalBlock::Paragraph => res.push_str("</p>"),
                         LogicalBlock::Pre => res.push_str("</pre>"),
-                        LogicalBlock::Section | LogicalBlock::Subsection => {}
+                        LogicalBlock::Section | LogicalBlock::Subsection => {
+                            blank_line(&mut res);
+                        }
                     }
                 }
                 Sem::Style(style) => {
