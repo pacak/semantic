@@ -580,6 +580,9 @@ impl Doc {
         // Items inside definition lists are encased in <dd> instead of <li>
         let mut is_dlist = false;
         for (meta, payload) in &self.0 {
+            if !matches!(meta, Sem::Style(_)) {
+                change_style(&mut res, &mut cur_style, Styles::default());
+            }
             match meta {
                 Sem::BlockStart(block) => match block {
                     LogicalBlock::DefinitionList => {
@@ -626,27 +629,24 @@ impl Doc {
                         res.push_str("## ");
                     }
                 },
-                Sem::BlockEnd(block) => {
-                    change_style(&mut res, &mut cur_style, Styles::default());
-                    match block {
-                        LogicalBlock::DefinitionList => res.push_str("</dl>"),
-                        LogicalBlock::UnnumberedList => res.push_str("</ul>"),
-                        LogicalBlock::NumberedList => res.push_str("</ol>"),
-                        LogicalBlock::ListItem => {
-                            if is_dlist {
-                                res.push_str("</dd>");
-                            } else {
-                                res.push_str("</li>");
-                            }
-                        }
-                        LogicalBlock::ListKey => res.push_str("</dt>"),
-                        LogicalBlock::Paragraph => res.push_str("</p>"),
-                        LogicalBlock::Pre => res.push_str("</pre>"),
-                        LogicalBlock::Section | LogicalBlock::Subsection => {
-                            blank_line(&mut res);
+                Sem::BlockEnd(block) => match block {
+                    LogicalBlock::DefinitionList => res.push_str("</dl>"),
+                    LogicalBlock::UnnumberedList => res.push_str("</ul>"),
+                    LogicalBlock::NumberedList => res.push_str("</ol>"),
+                    LogicalBlock::ListItem => {
+                        if is_dlist {
+                            res.push_str("</dd>");
+                        } else {
+                            res.push_str("</li>");
                         }
                     }
-                }
+                    LogicalBlock::ListKey => res.push_str("</dt>"),
+                    LogicalBlock::Paragraph => res.push_str("</p>"),
+                    LogicalBlock::Pre => res.push_str("</pre>"),
+                    LogicalBlock::Section | LogicalBlock::Subsection => {
+                        blank_line(&mut res);
+                    }
+                },
                 Sem::Style(style) => {
                     change_style(&mut res, &mut cur_style, Styles::from(*style));
                     res.push_str(payload);
