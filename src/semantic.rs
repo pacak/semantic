@@ -45,7 +45,7 @@ impl Doc {
     ///
     /// When rendered as manpage it will use all caps
     pub fn section(&mut self, name: &str) -> &mut Self {
-        self.push(Scoped(LogicalBlock::Section, text(name)))
+        self.push(&Scoped(LogicalBlock::Section, text(name)))
     }
 
     /// Insert document subsection name
@@ -57,7 +57,7 @@ impl Doc {
     ///     .paragraph("Some plain text.");
     /// ```
     pub fn subsection(&mut self, name: &str) -> &mut Self {
-        self.push(Scoped(LogicalBlock::Subsection, text(name)))
+        self.push(&Scoped(LogicalBlock::Subsection, text(name)))
     }
 
     /// Add a paragraph of text
@@ -72,7 +72,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(Scoped(LogicalBlock::Paragraph, text))
+        self.push(&Scoped(LogicalBlock::Paragraph, text))
     }
 
     /// Add a preformatted block of text
@@ -82,7 +82,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(Scoped(LogicalBlock::Pre, text))
+        self.push(&Scoped(LogicalBlock::Pre, text))
     }
 
     /// Insert a numbered list
@@ -92,7 +92,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(Scoped(LogicalBlock::NumberedList, items))
+        self.push(&Scoped(LogicalBlock::NumberedList, items))
     }
 
     /// Insert an unnumbered list
@@ -102,7 +102,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(Scoped(LogicalBlock::UnnumberedList, items))
+        self.push(&Scoped(LogicalBlock::UnnumberedList, items))
     }
 
     /// Insert a definition list
@@ -113,7 +113,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(Scoped(LogicalBlock::DefinitionList, items))
+        self.push(&Scoped(LogicalBlock::DefinitionList, items))
     }
 
     /// Insert a list item
@@ -124,7 +124,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(Scoped(LogicalBlock::ListItem, item))
+        self.push(&Scoped(LogicalBlock::ListItem, item))
     }
 
     /// Insert a term into a definition list
@@ -134,7 +134,7 @@ impl Doc {
     where
         T: Write,
     {
-        self.push(Scoped(LogicalBlock::ListKey, term))
+        self.push(&Scoped(LogicalBlock::ListKey, term))
     }
 
     /// Insert a definition into a definition list
@@ -145,14 +145,27 @@ impl Doc {
         T: Write,
         D: Write,
     {
-        self.push(Scoped(LogicalBlock::ListKey, term));
-        self.push(Scoped(LogicalBlock::ListItem, definition));
+        self.push(&Scoped(LogicalBlock::ListKey, term));
+        self.push(&Scoped(LogicalBlock::ListItem, definition));
         self
     }
 
-    /// Append
+    /// Append a semantic fragment to a document
+    ///
+    /// `push` consumes semantic fragment, if you only have a referece to it you
+    /// can append it using [`Write`] trait directly:
+    ///
+    /// ```rust
+    /// # let mut doc = Doc::default();
+    /// let fragment = literal("cauwugo");
+    /// // append a fragment without consuming it
+    /// fragment.write(&mut doc);
+    /// // append a fragment without consuming it
+    /// doc.push(fragment);
+    /// ```
     #[inline(always)]
-    pub fn push<S>(&mut self, text: S) -> &mut Self
+    //
+    pub fn push<S>(&mut self, text: &S) -> &mut Self
     where
         S: Write,
     {
@@ -167,7 +180,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(mono(payload.as_ref()))
+        self.push(&mono(payload.as_ref()))
     }
 
     /// Literal text fragment
@@ -189,7 +202,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(literal(payload.as_ref()))
+        self.push(&literal(payload.as_ref()))
     }
 
     /// Metavariable fragment
@@ -210,7 +223,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(metavar(payload.as_ref()))
+        self.push(&metavar(payload.as_ref()))
     }
 
     /// Plain text fragment
@@ -230,7 +243,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(text(payload.as_ref()))
+        self.push(&text(payload.as_ref()))
     }
 
     /// Important text fragment
@@ -250,7 +263,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(important(payload.as_ref()))
+        self.push(&important(payload.as_ref()))
     }
 }
 
