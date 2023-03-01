@@ -307,7 +307,7 @@ impl<F: Fn(&mut Doc)> Write for F {
     }
 }
 
-impl<const N: usize, S> Write for &[S; N]
+impl<const N: usize, S> Write for [S; N]
 where
     S: Write,
 {
@@ -783,4 +783,10 @@ impl Doc {
 
         roff.render(Apostrophes::Handle)
     }
+}
+
+#[test]
+fn push_slice() {
+    let mut doc = Doc::default();
+    doc.push(&[mono("hello"), mono("world")]);
 }

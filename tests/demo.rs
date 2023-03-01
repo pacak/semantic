@@ -11,11 +11,11 @@ fn file(name: &str) -> PathBuf {
 fn doc() -> Doc {
     let mut doc = Doc::default();
     doc.section("Description");
-    doc.paragraph(&[text("Pass "), literal("--help"), text(" for info.")]);
+    doc.paragraph([text("Pass "), literal("--help"), text(" for info.")]);
     doc.section("Options");
     doc.dlist(|doc: &mut Doc| {
         doc.definition(
-            &[literal("-v"), mono(" "), literal("--verbose")],
+            [literal("-v"), mono(" "), literal("--verbose")],
             text("Use verbose output"),
         )
         .definition(literal("--help"), text("Print usage"))
@@ -38,7 +38,7 @@ fn doc() -> Doc {
 
     doc.pre(text("Exit code:\n 0: if OK\n 1: if not OK"));
 
-    doc.paragraph(&[
+    doc.paragraph([
         text("A few lines\n"),
         text("of text\n"),
         text(".can  be   here"),
