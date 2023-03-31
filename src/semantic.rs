@@ -45,7 +45,7 @@ impl Doc {
     ///
     /// When rendered as manpage it will use all caps
     pub fn section(&mut self, name: &str) -> &mut Self {
-        self.push(&Scoped(LogicalBlock::Section, text(name)))
+        self.push(Scoped(LogicalBlock::Section, text(name)))
     }
 
     /// Insert document subsection name
@@ -57,7 +57,7 @@ impl Doc {
     ///     .paragraph("Some plain text.");
     /// ```
     pub fn subsection(&mut self, name: &str) -> &mut Self {
-        self.push(&Scoped(LogicalBlock::Subsection, text(name)))
+        self.push(Scoped(LogicalBlock::Subsection, text(name)))
     }
 
     /// Add a paragraph of text
@@ -72,7 +72,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(&Scoped(LogicalBlock::Paragraph, text))
+        self.push(Scoped(LogicalBlock::Paragraph, text))
     }
 
     /// Add a preformatted block of text
@@ -82,7 +82,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(&Scoped(LogicalBlock::Pre, text))
+        self.push(Scoped(LogicalBlock::Pre, text))
     }
 
     /// Insert a numbered list
@@ -92,7 +92,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(&Scoped(LogicalBlock::NumberedList, items))
+        self.push(Scoped(LogicalBlock::NumberedList, items))
     }
 
     /// Insert an unnumbered list
@@ -102,7 +102,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(&Scoped(LogicalBlock::UnnumberedList, items))
+        self.push(Scoped(LogicalBlock::UnnumberedList, items))
     }
 
     /// Insert a definition list
@@ -113,7 +113,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(&Scoped(LogicalBlock::DefinitionList, items))
+        self.push(Scoped(LogicalBlock::DefinitionList, items))
     }
 
     /// Insert a list item
@@ -124,7 +124,7 @@ impl Doc {
     where
         S: Write,
     {
-        self.push(&Scoped(LogicalBlock::ListItem, item))
+        self.push(Scoped(LogicalBlock::ListItem, item))
     }
 
     /// Insert a term into a definition list
@@ -134,7 +134,7 @@ impl Doc {
     where
         T: Write,
     {
-        self.push(&Scoped(LogicalBlock::ListKey, term))
+        self.push(Scoped(LogicalBlock::ListKey, term))
     }
 
     /// Insert a definition into a definition list
@@ -145,8 +145,8 @@ impl Doc {
         T: Write,
         D: Write,
     {
-        self.push(&Scoped(LogicalBlock::ListKey, term));
-        self.push(&Scoped(LogicalBlock::ListItem, definition));
+        self.push(Scoped(LogicalBlock::ListKey, term));
+        self.push(Scoped(LogicalBlock::ListItem, definition));
         self
     }
 
@@ -156,16 +156,18 @@ impl Doc {
     /// can append it using [`Write`] trait directly:
     ///
     /// ```rust
+    /// # use roff::{Doc, literal};
     /// # let mut doc = Doc::default();
     /// let fragment = literal("cauwugo");
     /// // append a fragment without consuming it
-    /// fragment.write(&mut doc);
+    /// doc.push(fragment);
+    /// //fragment.write(&mut doc);
     /// // append a fragment without consuming it
     /// doc.push(fragment);
     /// ```
     #[inline(always)]
     //
-    pub fn push<S>(&mut self, text: &S) -> &mut Self
+    pub fn push<S>(&mut self, text: S) -> &mut Self
     where
         S: Write,
     {
@@ -180,7 +182,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(&mono(payload.as_ref()))
+        self.push(mono(payload.as_ref()))
     }
 
     /// Literal text fragment
@@ -202,7 +204,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(&literal(payload.as_ref()))
+        self.push(literal(payload.as_ref()))
     }
 
     /// Metavariable fragment
@@ -223,7 +225,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(&metavar(payload.as_ref()))
+        self.push(metavar(payload.as_ref()))
     }
 
     /// Plain text fragment
@@ -243,7 +245,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(&text(payload.as_ref()))
+        self.push(text(payload.as_ref()))
     }
 
     /// Important text fragment
@@ -263,7 +265,7 @@ impl Doc {
     where
         S: AsRef<str>,
     {
-        self.push(&important(payload.as_ref()))
+        self.push(important(payload.as_ref()))
     }
 }
 
@@ -288,14 +290,16 @@ impl Doc {
 /// // from other objects either using a closure or a slice as shown here
 /// doc.paragraph(|doc: &mut Doc| { // <- closure, note the type signature
 ///     // slices are a bit easier to use than closures but values inside must have the same type
-///     doc.push(&[StyledChar(Style::Literal, '-'), StyledChar(Style::Literal, 'h')]);
-///     doc.push(&[text(" and "), literal("--help"), text(" prints usage")]);
+///     doc.push([StyledChar(Style::Literal, '-'), StyledChar(Style::Literal, 'h')]);
+///     doc.push([text(" and "), literal("--help"), text(" prints usage")]);
 /// });
 /// let doc = doc.render_to_markdown();
 ///
 /// let expected = "<p><tt><b>-h</b></tt> and <tt><b>--help</b></tt> prints usage</p>";
 /// assert_eq!(doc, expected);
 /// ```
+///
+/// this trait should
 pub trait Write {
     /// Append a fragment to a semantic document
     fn write(&self, to: &mut Doc);
@@ -392,7 +396,7 @@ where
 /// ```rust
 /// # use ::roff::*;
 /// let mut doc = Doc::default();
-/// doc.push(&[
+/// doc.push([
 ///     StyledChar(Style::Literal, '-'),
 ///     StyledChar(Style::Literal, 'h'),
 /// ]);
@@ -415,7 +419,7 @@ impl Write for StyledChar {
 /// ```rust
 /// # use ::roff::*;
 /// let mut doc = Doc::default();
-/// doc.push(&[text("Pass "), literal("--help"), text(" to print the usage")]);
+/// doc.push([text("Pass "), literal("--help"), text(" to print the usage")]);
 /// let doc = doc.render_to_markdown();
 /// let expected = "Pass <tt><b>--help</b></tt> to print the usage";
 ///
@@ -436,7 +440,7 @@ where
 /// ```rust
 /// # use ::roff::*;
 /// let mut doc = Doc::default();
-/// doc.push(&[text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
+/// doc.push([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
 /// let expected = "To save output to file: <tt><b>-o</b> <i>FILE</i></tt>";
 ///
@@ -456,7 +460,7 @@ where
 /// ```rust
 /// # use ::roff::*;
 /// let mut doc = Doc::default();
-/// doc.push(&[text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
+/// doc.push([text("To save output to file: "), literal("-o"), mono(" "), metavar("FILE")]);
 /// let doc = doc.render_to_markdown();
 /// let expected = "To save output to file: <tt><b>-o</b> <i>FILE</i></tt>";
 ///
@@ -788,5 +792,5 @@ impl Doc {
 #[test]
 fn push_slice() {
     let mut doc = Doc::default();
-    doc.push(&[mono("hello"), mono("world")]);
+    doc.push([mono("hello"), mono("world")]);
 }

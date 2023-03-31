@@ -16,11 +16,11 @@
 //! let mut doc = Doc::default();
 //!
 //! doc.section("Usage")
-//!     .paragraph(&[text("Program takes "), literal("--help"), text(" flag")])
+//!     .paragraph([text("Program takes "), literal("--help"), text(" flag")])
 //!     .ulist(|doc: &mut Doc| {
 //!         doc.item(text("program is written in Rust"))
 //!             .item(text("program should not crash"))
-//!             .item(&[text("pass "), literal("--version"), text(" to see the version")]);
+//!             .item([text("pass "), literal("--version"), text(" to see the version")]);
 //!     });
 //! ```
 //!
